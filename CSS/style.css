@@ -184,7 +184,6 @@ body {
     background-color: #f9fafb;
 }
 
-
 #mediaToolbar {
     bottom: 50px;
 }
@@ -272,7 +271,7 @@ body {
     transition: background 0.2s ease;
 }
 
-#volumeSlider {
+#volumeSlider, #speedSlider {
     width: 0;
     opacity: 0;
     pointer-events: none;
@@ -284,21 +283,21 @@ body {
     background: #f7f7f7;
 }
 
-.volumeControl:hover #volumeSlider {
+.volumeControl:hover #volumeSlider, .volumeControl:hover #speedSlider {
     width: 80px;
     opacity: 1;
     pointer-events: auto;
 }
 
-#volumeSlider {
-    -webkit-appearance: none;
+#volumeSlider, #speedSlider {
     appearance: none;
     height: 4px;
     background: #d1d5db;
     border-radius: 999px;
+    margin: 0;
 }
 
-#volumeSlider::-webkit-slider-thumb {
+#volumeSlider::-webkit-slider-thumb, #speedSlider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 12px;
@@ -321,4 +320,65 @@ body {
     opacity: 0;
     pointer-events: none;
     transform: translateY(10px);
+}
+
+#pdfSheetWrapper {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    z-index: 50;
+}
+
+#pdfSheet {
+    width: 60%;
+    max-height: 70%;
+    padding: 30px;
+    background: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,.15);
+    border-radius: 6px;
+    overflow-y: auto;
+    font-family: "Inter", sans-serif;
+    line-height: 1.8;
+    pointer-events: auto;
+}
+
+.pdf-word {
+    cursor: pointer;
+    user-select: none;
+}
+
+.pdf-word:hover {
+    background: #fde68a;
+    border-radius: 4px;
+}
+
+.sticky-note--readonly {
+    cursor: grab;
+}
+
+.sticky-note--readonly:active {
+    cursor: grabbing;
+}
+
+.sticky-note__content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sticky-word {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sticky-word:hover {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+.sticky-note--readonly textarea {
+    display: none;
 }

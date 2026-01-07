@@ -1,44 +1,66 @@
+const SENTENCE_END_REGEX = /[.!?]$/;
+
+/* ===== AUDIO STATE ===== */
+const audioState = {
+  playing: false,
+  volume: 100,
+  rate: 1
+};
+
+/* ===== READER STATE ===== */
+const readerState = {
+  words: [],
+  index: 0,              // indice globale della parola
+  sentenceStart: 0,      // inizio del periodo
+  sentenceWords: [],
+  sentenceIndex: 0,      // parola corrente nel periodo
+  speaking: false
+};
+
+
+/* ===== SPEECH SYNTH ===== */
+const synth = window.speechSynthesis;
+let currentUtterance = null;
+let activeStickyNote = null;
+
+
+const playPauseBtn = document.getElementById("playPauseBtn");
+const playPauseIcon = document.getElementById("playPauseIcon");
+const stopBtn = document.getElementById("stopBtn");
+const volumeSlider = document.getElementById("volumeSlider");
+const volumeIcon = document.getElementById("volumeIcon");
+const speedSlider = document.getElementById("speedSlider");
+
+const uploadToolbar = document.getElementById("uploadToolbar");
+const mediaToolbar = document.getElementById("mediaToolbar");
+const pdfSheet = document.getElementById("pdfSheet");
+
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const browse = document.getElementById("browse");
 
-if (dropzone && fileInput && browse) {
 
-    browse.onclick = () => fileInput.click();
+volumeSlider.value = audioState.volume;
+speedSlider.value = audioState.rate;
 
-    fileInput.onchange = () => handleFile(fileInput.files[0]);
-
-    dropzone.ondragover = e => {
-        e.preventDefault();
-        dropzone.classList.add("dragover");
-    };
-
-    dropzone.ondragleave = () => {
-        dropzone.classList.remove("dragover");
-    };
-
-    dropzone.ondrop = e => {
-        e.preventDefault();
-        dropzone.classList.remove("dragover");
-        handleFile(e.dataTransfer.files[0]);
-    };
+if (browse && fileInput) {
+  browse.onclick = () => fileInput.click();
+  fileInput.onchange = () => handleFile(fileInput.files[0]);
 }
 
+if (dropzone) {
+  dropzone.ondragover = e => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  };
 
-const uploadToolbar = document.getElementById("uploadToolbar");
-const mediaToolbar = document.getElementById("mediaToolbar");
+  dropzone.ondragleave = () => dropzone.classList.remove("dragover");
 
-function handleFile(file) {
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-        alert("Carica un PDF");
-        return;
-    }
-    console.log("PDF caricato:", file.name);
-
-    //switch toolbar
-    uploadToolbar.classList.add("hidden");
-    mediaToolbar.classList.remove("hidden");
+  dropzone.ondrop = e => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    handleFile(e.dataTransfer.files[0]);
+  };
 }
 
 
@@ -54,75 +76,238 @@ document.addEventListener("drop", e => {
   }
 });
 
-/* ===== FAKE AUDIO STATE ===== */
-const audioState = {
-    playing: false,
-    volume: 100
-};
 
-const playPauseBtn = document.getElementById("playPauseBtn");
-const playPauseIcon = document.getElementById("playPauseIcon");
-const stopBtn = document.getElementById("stopBtn");
-const volumeSlider = document.getElementById("volumeSlider");
-const volumeIcon = document.getElementById("volumeIcon");
+async function handleFile(file) {
+  if (!file || file.type !== "application/pdf") {
+    alert("Carica un PDF valido");
+    return;
+  }
 
-/* ===== PLAY / PAUSE ===== */
+  uploadToolbar.classList.add("hidden");
+  mediaToolbar.classList.remove("hidden");
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  pdfSheet.innerHTML = "";
+  readerState.words = [];
+  readerState.index = 0;
+  readerState.reading = false;
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+
+    content.items.forEach(item => {
+      item.str.split(/\s+/).forEach(word => {
+        if (!word) return;
+
+        const span = document.createElement("span");
+        span.className = "pdf-word";
+        span.textContent = word + " ";
+
+        span.addEventListener("click", (e) => {
+          e.preventDefault();
+
+          const word = span.textContent.trim();
+          addWordToSticky(word);
+        });
+
+        span.addEventListener("contextmenu", (e) => {
+          e.preventDefault(); // blocca menu browser
+
+          synth.cancel();
+
+          readerState.index = readerState.words.indexOf(span);
+          audioState.playing = true;
+          readerState.speaking = false;
+
+          playPauseIcon.src = "img/pauseIcon.png";
+
+          requestAnimationFrame(speakSentence);
+        });
+
+
+
+        pdfSheet.appendChild(span);
+        readerState.words.push(span);
+      });
+    });
+
+    pdfSheet.appendChild(document.createElement("br"));
+    pdfSheet.appendChild(document.createElement("br"));
+  }
+}
+
+function speakSentence() {
+  if (!audioState.playing) return;
+  if (readerState.index >= readerState.words.length) return;
+
+  readerState.sentenceWords = [];
+  readerState.sentenceIndex = 0;
+  readerState.sentenceStart = readerState.index;
+
+  let i = readerState.index;
+
+  while (i < readerState.words.length) {
+    const word = readerState.words[i].textContent.trim();
+    readerState.sentenceWords.push(word);
+    if (/[.!?]$/.test(word)) break;
+    i++;
+  }
+
+  const sentenceText = readerState.sentenceWords.join(" ");
+
+  currentUtterance = new SpeechSynthesisUtterance(sentenceText);
+  currentUtterance.lang = "it-IT";
+  currentUtterance.volume = audioState.volume / 100;
+  currentUtterance.rate = audioState.rate;
+
+  readerState.speaking = true;
+
+  currentUtterance.onboundary = e => {
+    if (e.name === "word") {
+      const spoken = sentenceText.slice(0, e.charIndex);
+      readerState.sentenceIndex = spoken.trim().split(/\s+/).length;
+    }
+  };
+
+  currentUtterance.onend = () => {
+    readerState.speaking = false;
+    readerState.index = readerState.sentenceStart + readerState.sentenceWords.length;
+    speakSentence();
+  };
+
+  currentUtterance.onerror = () => {
+    readerState.speaking = false;
+  };
+
+  synth.speak(currentUtterance);
+}
+
+function restartFromLastWord() {
+  if (!audioState.playing) return;
+
+  synth.cancel();
+  readerState.speaking = false;
+
+  // torna esattamente all'ultima parola completata
+  readerState.index =
+    readerState.sentenceStart + readerState.sentenceIndex;
+
+  requestAnimationFrame(speakSentence);
+}
+
+
 playPauseBtn.addEventListener("click", () => {
-    audioState.playing = !audioState.playing;
-    playPauseIcon.src = audioState.playing
-        ? "img/pauseIcon.png"
-        : "img/playIcon.png";
-    console.log("PLAY:", audioState.playing);
-});
-
-/* ===== STOP ===== */
-stopBtn.addEventListener("click", () => {
+  if (!audioState.playing) {
+    audioState.playing = true;
+    playPauseIcon.src = "img/pauseIcon.png";
+    restartFromLastWord();
+  } else {
     audioState.playing = false;
     playPauseIcon.src = "img/playIcon.png";
-
-    console.log("STOP");
+    synth.cancel();
+    readerState.speaking = false;
+  }
 });
 
-/* ===== VOLUME ===== */
+stopBtn.addEventListener("click", () => {
+  audioState.playing = false;
+  readerState.index = 0;
+  readerState.speaking = false;
+
+  synth.cancel();
+
+  document.querySelectorAll(".pdf-word.active")
+    .forEach(w => w.classList.remove("active"));
+
+  playPauseIcon.src = "img/playIcon.png";
+});
+
+
 volumeSlider.addEventListener("input", () => {
-    audioState.volume = parseInt(volumeSlider.value, 10);
-    updateVolumeIcon(audioState.volume);
-
-    console.log("VOLUME:", audioState.volume);
+  audioState.volume = parseInt(volumeSlider.value, 10);
+  updateVolumeIcon(audioState.volume);
+  restartFromLastWord();
 });
 
-/* ===== ICON LOGIC ===== */
+speedSlider.addEventListener("input", () => {
+  audioState.rate = parseFloat(speedSlider.value);
+  restartFromLastWord();
+});
+
+
+
+
+function jumpToWord(span) {
+  synth.cancel();
+  readerState.index = readerState.words.indexOf(span);
+  audioState.playing = true;
+  readerState.reading = true;
+  playPauseIcon.src = "img/pauseIcon.png";
+  readNextWord();
+}
+
+
+
+
+
 function updateVolumeIcon(volume) {
-    if (volume === 0) {
-        volumeIcon.src = "img/volume/offIcon.png";
-    } else if (volume < 50) {
-        volumeIcon.src = "img/volume/lowIcon.png";
-    } else if (volume < 100) {
-        volumeIcon.src = "img/volume/midIcon.png";
-    } else {
-        volumeIcon.src = "img/volume/highIcon.png";
-    }
+  if (volume === 0) volumeIcon.src = "img/volume/offIcon.png";
+  else if (volume < 50) volumeIcon.src = "img/volume/lowIcon.png";
+  else if (volume < 100) volumeIcon.src = "img/volume/midIcon.png";
+  else volumeIcon.src = "img/volume/highIcon.png";
 }
 
 let lastVolume = audioState.volume;
 
 volumeIcon.addEventListener("click", () => {
-    if (audioState.volume > 0) {
-        lastVolume = audioState.volume;
-        audioState.volume = 0;
-        volumeSlider.value = 0;
-    } else {
-        audioState.volume = lastVolume || 50;
-        volumeSlider.value = audioState.volume;
-    }
+  if (audioState.volume > 0) {
+    lastVolume = audioState.volume;
+    audioState.volume = 0;
+    volumeSlider.value = 0;
+  } else {
+    audioState.volume = lastVolume || 50;
+    volumeSlider.value = audioState.volume;
+  }
 
-    updateVolumeIcon(audioState.volume);
+  updateVolumeIcon(audioState.volume);
 
-    console.log("MUTE TOGGLE →", audioState.volume);
+  // 🔥 RIAVVIA IL SINTETIZZATORE DALL'ULTIMA PAROLA
+  if (audioState.playing) {
+    restartFromLastWord();
+  }
+
+  console.log("MUTE TOGGLE →", audioState.volume);
 });
 
-/* init */
+
 updateVolumeIcon(audioState.volume);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -240,6 +425,8 @@ updateVolumeIcon(audioState.volume);
     state.lastMouse = { x: e.clientX, y: e.clientY };
   }
 
+  window.handleNoteMouseDown = handleNoteMouseDown;
+
   function onMouseDown(e) {
     if (e.target.closest(".sticky-app__toolbar") || state.isDraggingNote)
       return;
@@ -312,3 +499,60 @@ updateVolumeIcon(audioState.volume);
 
   btnAdd.addEventListener("click", () => createNote());
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+window.createStickyNote = function () {
+    const canvas = document.getElementById("canvas");
+
+    const note = document.createElement("article");
+    note.className = "sticky-note sticky-note--yellow sticky-note--readonly";
+    note.style.left = "120px";
+    note.style.top = "120px";
+    note.style.zIndex = 999;
+
+    const content = document.createElement("div");
+    content.className = "sticky-note__content";
+
+    note.appendChild(content);
+
+    note.addEventListener("mousedown", handleNoteMouseDown);
+
+    canvas.appendChild(note);
+
+    activeStickyNote = note;
+    return note;
+};
+
+
+function addWordToSticky(word) {
+    if (!activeStickyNote) {
+        activeStickyNote = createStickyNote();
+    }
+
+    const content = activeStickyNote.querySelector(".sticky-note__content");
+
+    const span = document.createElement("span");
+    span.className = "sticky-word";
+    span.textContent = word;
+
+    span.addEventListener("click", () => {
+        span.remove();
+    });
+
+    content.appendChild(span);
+}
+
