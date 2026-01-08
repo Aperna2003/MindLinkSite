@@ -17,6 +17,7 @@
     --z-canvas: 1;
     --z-note: 10;
     --z-ui: 1000;
+    --toolbar-safe-area: 100px;
 }
 
 body {
@@ -184,7 +185,7 @@ body {
     background-color: #f9fafb;
 }
 
-#mediaToolbar {
+#mediaToolbar, #deleteToolbar {
     bottom: 50px;
 }
 
@@ -324,7 +325,10 @@ body {
 
 #pdfSheetWrapper {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: var(--toolbar-safe-area);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -343,6 +347,7 @@ body {
     font-family: "Inter", sans-serif;
     line-height: 1.8;
     pointer-events: auto;
+    margin-bottom: 20px;
 }
 
 .pdf-word {
@@ -381,4 +386,47 @@ body {
 
 .sticky-note--readonly textarea {
     display: none;
+}
+
+#deleteDropzone {
+    border: 2px dashed #ccc;
+    border-radius: 50px;
+    padding: 10px;
+    text-align: center;
+    color: #555;
+    font-family: system-ui, sans-serif;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+#deleteDropzone.active {
+    background: #f5f7fa;
+    border-color: #C10000;
+}
+
+#deleteToolbar {
+    padding: 8px;
+}
+
+
+.sticky-note__content--readonly {
+  pointer-events: auto;
+  user-select: none;
+}
+
+.help-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.help-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+#helpSticky h3 {
+    margin-top: 0px;
 }

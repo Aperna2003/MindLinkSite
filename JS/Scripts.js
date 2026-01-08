@@ -39,6 +39,10 @@ const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const browse = document.getElementById("browse");
 
+const deleteToolbar = document.getElementById("deleteToolbar");
+const deleteDropzone = document.getElementById("deleteDropzone");
+
+
 
 volumeSlider.value = audioState.volume;
 speedSlider.value = audioState.rate;
@@ -63,7 +67,6 @@ if (dropzone) {
   };
 }
 
-
 document.addEventListener("dragover", e => {
   e.preventDefault();
 });
@@ -77,6 +80,24 @@ document.addEventListener("drop", e => {
 });
 
 
+function showDeleteToolbar() {
+  uploadToolbar.classList.add("hidden");
+  mediaToolbar.classList.add("hidden");
+  deleteToolbar.classList.remove("hidden");
+}
+
+function hideDeleteToolbar() {
+  deleteToolbar.classList.add("hidden");
+
+  if (readerState.words.length > 0) {
+    mediaToolbar.classList.remove("hidden");
+  } else {
+    uploadToolbar.classList.remove("hidden");
+  }
+}
+
+
+
 async function handleFile(file) {
   if (!file || file.type !== "application/pdf") {
     alert("Carica un PDF valido");
@@ -85,6 +106,8 @@ async function handleFile(file) {
 
   uploadToolbar.classList.add("hidden");
   mediaToolbar.classList.remove("hidden");
+
+  createHelpStickyNote();
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -452,25 +475,44 @@ updateVolumeIcon(audioState.volume);
       state.draggedNote.style.transform = `scale(1.02) rotate(${velocity}deg)`;
 
       state.lastMouse = { x: e.clientX, y: e.clientY };
+
+      if (isOverDeleteZone(state.draggedNote)) {
+        deleteDropzone.classList.add("active");
+        deleteDropzone.querySelector("img").src = "img/deleteIconR.png";
+      } else {
+        deleteDropzone.classList.remove("active");
+        deleteDropzone.querySelector("img").src = "img/deleteIcon.png";
+      }
     }
   }
 
   function onMouseUp() {
-    if (state.isPanning) {
-      state.isPanning = false;
-      canvas.classList.remove("sticky-app__canvas--panning");
-    }
-
     if (state.isDraggingNote && state.draggedNote) {
       const note = state.draggedNote;
-      note.classList.remove("sticky-note--dragging");
-      note.classList.add("sticky-note--animate-drop");
 
-      const randomRestRot = Math.random() * 6 - 3;
-      note.style.transform = `rotate(${randomRestRot}deg)`;
+      if (isOverDeleteZone(note)) {
+        note.remove();
+
+        if (note === activeStickyNote) {
+          activeStickyNote = null;
+        }
+      } else {
+        note.classList.remove("sticky-note--dragging");
+        note.classList.add("sticky-note--animate-drop");
+
+        const randomRestRot = Math.random() * 6 - 3;
+        note.style.transform = `rotate(${randomRestRot}deg)`;
+      }
 
       state.isDraggingNote = false;
       state.draggedNote = null;
+
+      hideDeleteToolbar();
+    }
+
+    if (state.isPanning) {
+      state.isPanning = false;
+      canvas.classList.remove("sticky-app__canvas--panning");
     }
   }
 
@@ -492,6 +534,34 @@ updateVolumeIcon(audioState.volume);
     }
   }
 
+  function handleNoteMouseDown(e) {
+    if (e.target.tagName === "TEXTAREA") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const note = e.currentTarget;
+    state.isDraggingNote = true;
+    state.draggedNote = note;
+
+    showDeleteToolbar();
+
+    state.zIndexCounter++;
+    note.style.zIndex = state.zIndexCounter;
+
+    note.classList.remove("sticky-note--animate-drop");
+    note.classList.add("sticky-note--dragging");
+
+    const worldMouse = screenToWorld(e.clientX, e.clientY);
+    const noteLeft = parseFloat(note.style.left);
+    const noteTop = parseFloat(note.style.top);
+
+    state.dragOffset.x = worldMouse.x - noteLeft;
+    state.dragOffset.y = worldMouse.y - noteTop;
+    state.lastMouse = { x: e.clientX, y: e.clientY };
+  }
+
+
   window.addEventListener("mousedown", onMouseDown);
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mouseup", onMouseUp);
@@ -500,59 +570,130 @@ updateVolumeIcon(audioState.volume);
   btnAdd.addEventListener("click", () => createNote());
 })();
 
+function getRandomStickyColorClass() {
+  const colors = [
+    "sticky-note--yellow",
+    "sticky-note--blue",
+    "sticky-note--green",
+    "sticky-note--pink"
+  ];
 
+  return colors[Math.floor(Math.random() * colors.length)];
+}
 
+function createHelpStickyNote() {
+  const canvas = document.getElementById("canvas");
 
+  if (document.getElementById("helpSticky")) return;
 
+  const note = document.createElement("article");
+  note.id = "helpSticky";
+  note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
+  note.style.left = "1500px";
+  note.style.top = "80px";
+  note.style.zIndex = 1000;
 
+  const content = document.createElement("div");
+  content.className = "sticky-note__content sticky-note__content--readonly";
 
+  const rows = [
+    { titolo: "Comandi" },
+    { icon: "img/leftClick.png", text: "Segna parola nella lista" },
+    { icon: "img/rightClick.png", text: "Leggi dalla parola selezionata" },
+    { icon: "", text: "" },
+    { icon: "img/playIcon.png", text: "Avvia / Metti in pausa la lettura" },
+    { icon: "img/stopIcon.png", text: "Ferma la lettura e torna all’inizio" },
+    { icon: "img/volume/highIcon.png", text: "Regola o disattiva il volume" },
+    { icon: "img/flashIcon.png", text: "Modifica la velocità di lettura" },
 
+  ];
 
+rows.forEach(row => {
+    if (row.titolo) {
+        const title = document.createElement("h3");
+        title.className = "sticky-note__title";
+        title.textContent = row.titolo;
+        note.appendChild(title); // aggiunge il titolo
+        return;
+    }
 
+    if (!row.icon && !row.text) {
+        content.appendChild(document.createElement("hr"));
+        return;
+    }
 
+    const line = document.createElement("div");
+    line.className = "help-line";
 
+    if (row.icon) {
+        const img = document.createElement("img");
+        img.src = row.icon;
+        img.className = "help-icon";
+        line.appendChild(img);
+    }
 
+    const span = document.createElement("span");
+    span.textContent = row.text;
 
+    line.appendChild(span);
+    content.appendChild(line);
+});
+
+  note.appendChild(content);
+  note.addEventListener("mousedown", handleNoteMouseDown);
+  canvas.appendChild(note);
+}
 
 
 window.createStickyNote = function () {
-    const canvas = document.getElementById("canvas");
+  const canvas = document.getElementById("canvas");
 
-    const note = document.createElement("article");
-    note.className = "sticky-note sticky-note--yellow sticky-note--readonly";
-    note.style.left = "120px";
-    note.style.top = "120px";
-    note.style.zIndex = 999;
+  const note = document.createElement("article");
+  note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
+  note.style.left = "120px";
+  note.style.top = "120px";
+  note.style.zIndex = 999;
 
-    const content = document.createElement("div");
-    content.className = "sticky-note__content";
+  const content = document.createElement("div");
+  content.className = "sticky-note__content";
 
-    note.appendChild(content);
+  note.appendChild(content);
 
-    note.addEventListener("mousedown", handleNoteMouseDown);
+  note.addEventListener("mousedown", handleNoteMouseDown);
 
-    canvas.appendChild(note);
+  canvas.appendChild(note);
 
-    activeStickyNote = note;
-    return note;
+  activeStickyNote = note;
+  return note;
 };
 
 
 function addWordToSticky(word) {
-    if (!activeStickyNote) {
-        activeStickyNote = createStickyNote();
-    }
+  if (!activeStickyNote) {
+    activeStickyNote = createStickyNote();
+  }
 
-    const content = activeStickyNote.querySelector(".sticky-note__content");
+  const content = activeStickyNote.querySelector(".sticky-note__content");
 
-    const span = document.createElement("span");
-    span.className = "sticky-word";
-    span.textContent = word;
+  const span = document.createElement("span");
+  span.className = "sticky-word";
+  span.textContent = word;
 
-    span.addEventListener("click", () => {
-        span.remove();
-    });
+  span.addEventListener("click", () => {
+    span.remove();
+  });
 
-    content.appendChild(span);
+  content.appendChild(span);
 }
 
+function isOverDeleteZone(note) {
+  const noteRect = note.getBoundingClientRect();
+  const deleteRect = deleteDropzone.getBoundingClientRect();
+
+  return !(
+    noteRect.right < deleteRect.left ||
+    noteRect.left > deleteRect.right ||
+    noteRect.bottom < deleteRect.top ||
+    noteRect.top > deleteRect.bottom
+  );
+}
