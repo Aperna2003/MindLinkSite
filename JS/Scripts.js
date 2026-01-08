@@ -10,10 +10,10 @@ const audioState = {
 /* ===== READER STATE ===== */
 const readerState = {
   words: [],
-  index: 0,              // indice globale della parola
-  sentenceStart: 0,      // inizio del periodo
+  index: 0,              
+  sentenceStart: 0,      
   sentenceWords: [],
-  sentenceIndex: 0,      // parola corrente nel periodo
+  sentenceIndex: 0,
   speaking: false
 };
 
@@ -237,16 +237,16 @@ playPauseBtn.addEventListener("click", () => {
 
 stopBtn.addEventListener("click", () => {
   audioState.playing = false;
+
   readerState.index = 0;
+  readerState.sentenceStart = 0;
+  readerState.sentenceIndex = 0;
   readerState.speaking = false;
 
   synth.cancel();
-
-  document.querySelectorAll(".pdf-word.active")
-    .forEach(w => w.classList.remove("active"));
-
   playPauseIcon.src = "img/playIcon.png";
 });
+
 
 
 volumeSlider.addEventListener("input", () => {
@@ -297,7 +297,6 @@ volumeIcon.addEventListener("click", () => {
 
   updateVolumeIcon(audioState.volume);
 
-  // 🔥 RIAVVIA IL SINTETIZZATORE DALL'ULTIMA PAROLA
   if (audioState.playing) {
     restartFromLastWord();
   }
@@ -476,27 +475,45 @@ updateVolumeIcon(audioState.volume);
 
       state.lastMouse = { x: e.clientX, y: e.clientY };
 
-      if (isOverDeleteZone(state.draggedNote)) {
+      const mouseX = state.lastMouse.x;
+      const mouseY = state.lastMouse.y;
+
+      if (isMouseOverDeleteZone(mouseX, mouseY)) {
         deleteDropzone.classList.add("active");
         deleteDropzone.querySelector("img").src = "img/deleteIconR.png";
       } else {
         deleteDropzone.classList.remove("active");
         deleteDropzone.querySelector("img").src = "img/deleteIcon.png";
       }
+
     }
   }
+
+  function isMouseOverDeleteZone(mouseX, mouseY) {
+    const rect = deleteDropzone.getBoundingClientRect();
+
+    return (
+      mouseX >= rect.left &&
+      mouseX <= rect.right &&
+      mouseY >= rect.top &&
+      mouseY <= rect.bottom
+    );
+  }
+
 
   function onMouseUp() {
     if (state.isDraggingNote && state.draggedNote) {
       const note = state.draggedNote;
 
-      if (isOverDeleteZone(note)) {
+      const { x, y } = state.lastMouse;
+
+      if (isMouseOverDeleteZone(x, y)) {
         note.remove();
 
         if (note === activeStickyNote) {
           activeStickyNote = null;
         }
-      } else {
+      }else {
         note.classList.remove("sticky-note--dragging");
         note.classList.add("sticky-note--animate-drop");
 
@@ -515,6 +532,7 @@ updateVolumeIcon(audioState.volume);
       canvas.classList.remove("sticky-app__canvas--panning");
     }
   }
+
 
   function onWheel(e) {
     if (e.ctrlKey || e.metaKey) {
@@ -608,28 +626,28 @@ function createHelpStickyNote() {
 
   ];
 
-rows.forEach(row => {
+  rows.forEach(row => {
     if (row.titolo) {
-        const title = document.createElement("h3");
-        title.className = "sticky-note__title";
-        title.textContent = row.titolo;
-        note.appendChild(title); // aggiunge il titolo
-        return;
+      const title = document.createElement("h3");
+      title.className = "sticky-note__title";
+      title.textContent = row.titolo;
+      note.appendChild(title); // aggiunge il titolo
+      return;
     }
 
     if (!row.icon && !row.text) {
-        content.appendChild(document.createElement("hr"));
-        return;
+      content.appendChild(document.createElement("hr"));
+      return;
     }
 
     const line = document.createElement("div");
     line.className = "help-line";
 
     if (row.icon) {
-        const img = document.createElement("img");
-        img.src = row.icon;
-        img.className = "help-icon";
-        line.appendChild(img);
+      const img = document.createElement("img");
+      img.src = row.icon;
+      img.className = "help-icon";
+      line.appendChild(img);
     }
 
     const span = document.createElement("span");
@@ -637,7 +655,7 @@ rows.forEach(row => {
 
     line.appendChild(span);
     content.appendChild(line);
-});
+  });
 
   note.appendChild(content);
   note.addEventListener("mousedown", handleNoteMouseDown);
