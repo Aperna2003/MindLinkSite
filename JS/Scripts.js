@@ -1,5 +1,7 @@
 const SENTENCE_END_REGEX = /[.!?]$/;
 
+const DRAG_BORDER_SIZE = 30;
+
 /* ===== AUDIO STATE ===== */
 const audioState = {
   playing: false,
@@ -10,8 +12,8 @@ const audioState = {
 /* ===== READER STATE ===== */
 const readerState = {
   words: [],
-  index: 0,              
-  sentenceStart: 0,      
+  index: 0,
+  sentenceStart: 0,
   sentenceWords: [],
   sentenceIndex: 0,
   speaking: false
@@ -42,7 +44,11 @@ const browse = document.getElementById("browse");
 const deleteToolbar = document.getElementById("deleteToolbar");
 const deleteDropzone = document.getElementById("deleteDropzone");
 
+const helpToolbar = document.getElementById("helpToolbar");
+const helpBtn = document.getElementById("helpBtn");
+const helpIcon = document.getElementById("helpIcon");
 
+let helpVisible = false;
 
 volumeSlider.value = audioState.volume;
 speedSlider.value = audioState.rate;
@@ -83,6 +89,7 @@ document.addEventListener("drop", e => {
 function showDeleteToolbar() {
   uploadToolbar.classList.add("hidden");
   mediaToolbar.classList.add("hidden");
+  helpToolbar.classList.add("hidden");
   deleteToolbar.classList.remove("hidden");
 }
 
@@ -91,6 +98,7 @@ function hideDeleteToolbar() {
 
   if (readerState.words.length > 0) {
     mediaToolbar.classList.remove("hidden");
+    helpToolbar.classList.remove("hidden");
   } else {
     uploadToolbar.classList.remove("hidden");
   }
@@ -106,8 +114,9 @@ async function handleFile(file) {
 
   uploadToolbar.classList.add("hidden");
   mediaToolbar.classList.remove("hidden");
+  helpToolbar.classList.remove("hidden");
 
-  createHelpStickyNote();
+  //createHelpStickyNote();
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -132,8 +141,13 @@ async function handleFile(file) {
         span.addEventListener("click", (e) => {
           e.preventDefault();
 
-          const word = span.textContent.trim();
-          addWordToSticky(word);
+          const rawWord = span.textContent.trim();
+          const cleanedWord = cleanWord(rawWord);
+
+          if (cleanedWord) {
+            addWordToSticky(cleanedWord);
+          }
+
         });
 
         span.addEventListener("contextmenu", (e) => {
@@ -214,7 +228,6 @@ function restartFromLastWord() {
   synth.cancel();
   readerState.speaking = false;
 
-  // torna esattamente all'ultima parola completata
   readerState.index =
     readerState.sentenceStart + readerState.sentenceIndex;
 
@@ -307,51 +320,6 @@ volumeIcon.addEventListener("click", () => {
 
 updateVolumeIcon(audioState.volume);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 (function () {
   const canvas = document.getElementById("canvas");
   const btnAdd = document.getElementById("btn-add");
@@ -387,6 +355,24 @@ updateVolumeIcon(audioState.volume);
 
   function createNote(initialX, initialY) {
     const note = document.createElement("article");
+    note.addEventListener("mousemove", e => {
+      if (state.isDraggingNote) return;
+
+      const rect = note.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const isOnBorder =
+        x < DRAG_BORDER_SIZE ||
+        x > rect.width - DRAG_BORDER_SIZE ||
+        y < DRAG_BORDER_SIZE ||
+        y > rect.height - DRAG_BORDER_SIZE;
+
+      note.style.cursor = isOnBorder ? "grab" : "default";
+    });
+
+    note.dataset.type = "text";
+
     const theme = THEME_CLASSES[Math.floor(Math.random() * THEME_CLASSES.length)];
 
     note.className = `sticky-note ${theme}`;
@@ -402,9 +388,39 @@ updateVolumeIcon(audioState.volume);
     note.style.transform = `rotate(${randomRot}deg)`;
 
     const textarea = document.createElement("textarea");
+
     textarea.className = "sticky-note__content";
     textarea.setAttribute("aria-label", "Sticky note content");
     textarea.placeholder = "Take a note...";
+
+    note.addEventListener("dragover", e => {
+      if (note.dataset.type !== "text") return;
+      e.preventDefault();
+    });
+
+    note.addEventListener("drop", e => {
+      if (note.dataset.type !== "text") return;
+
+      e.preventDefault();
+
+      const text = e.dataTransfer.getData("text/plain");
+      if (!text) return;
+
+      const textarea = note.querySelector("textarea");
+      if (!textarea) return;
+
+      const start = textarea.selectionStart ?? textarea.value.length;
+      const end = textarea.selectionEnd ?? textarea.value.length;
+
+      textarea.value =
+        textarea.value.slice(0, start) +
+        text + " " +
+        textarea.value.slice(end);
+
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + text.length + 1;
+    });
+
 
     note.appendChild(textarea);
 
@@ -412,24 +428,31 @@ updateVolumeIcon(audioState.volume);
 
     canvas.appendChild(note);
 
-    note.animate(
-      [
-        { transform: `scale(0.8) rotate(${randomRot}deg)`, opacity: 0 },
-        { transform: `scale(1) rotate(${randomRot}deg)`, opacity: 1 }
-      ],
-      { duration: 300, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" }
-    );
+    return note;
   }
 
   function handleNoteMouseDown(e) {
-    if (e.target.tagName === "TEXTAREA") return;
+    const note = e.currentTarget;
+
+    const rect = note.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const isOnBorder =
+      x < DRAG_BORDER_SIZE ||
+      x > rect.width - DRAG_BORDER_SIZE ||
+      y < DRAG_BORDER_SIZE ||
+      y > rect.height - DRAG_BORDER_SIZE;
+
+    if (!isOnBorder) return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    const note = e.currentTarget;
     state.isDraggingNote = true;
     state.draggedNote = note;
+
+    showDeleteToolbar();
 
     state.zIndexCounter++;
     note.style.zIndex = state.zIndexCounter;
@@ -437,7 +460,6 @@ updateVolumeIcon(audioState.volume);
     note.classList.remove("sticky-note--animate-drop");
     note.classList.add("sticky-note--dragging");
 
-    const rect = note.getBoundingClientRect();
     const worldMouse = screenToWorld(e.clientX, e.clientY);
     const noteLeft = parseFloat(note.style.left);
     const noteTop = parseFloat(note.style.top);
@@ -446,6 +468,7 @@ updateVolumeIcon(audioState.volume);
     state.dragOffset.y = worldMouse.y - noteTop;
     state.lastMouse = { x: e.clientX, y: e.clientY };
   }
+
 
   window.handleNoteMouseDown = handleNoteMouseDown;
 
@@ -510,10 +533,17 @@ updateVolumeIcon(audioState.volume);
       if (isMouseOverDeleteZone(x, y)) {
         note.remove();
 
+        if (note.dataset.help === "true") {
+          helpBtn.classList.remove("sticky-btn--primary");
+          helpBtn.classList.add("sticky-btn--secondary");
+          helpIcon.src = "img/helpIcon.png";
+        }
+
+
         if (note === activeStickyNote) {
           activeStickyNote = null;
         }
-      }else {
+      } else {
         note.classList.remove("sticky-note--dragging");
         note.classList.add("sticky-note--animate-drop");
 
@@ -552,40 +582,16 @@ updateVolumeIcon(audioState.volume);
     }
   }
 
-  function handleNoteMouseDown(e) {
-    if (e.target.tagName === "TEXTAREA") return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const note = e.currentTarget;
-    state.isDraggingNote = true;
-    state.draggedNote = note;
-
-    showDeleteToolbar();
-
-    state.zIndexCounter++;
-    note.style.zIndex = state.zIndexCounter;
-
-    note.classList.remove("sticky-note--animate-drop");
-    note.classList.add("sticky-note--dragging");
-
-    const worldMouse = screenToWorld(e.clientX, e.clientY);
-    const noteLeft = parseFloat(note.style.left);
-    const noteTop = parseFloat(note.style.top);
-
-    state.dragOffset.x = worldMouse.x - noteLeft;
-    state.dragOffset.y = worldMouse.y - noteTop;
-    state.lastMouse = { x: e.clientX, y: e.clientY };
-  }
-
-
   window.addEventListener("mousedown", onMouseDown);
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mouseup", onMouseUp);
   window.addEventListener("wheel", onWheel, { passive: false });
 
-  btnAdd.addEventListener("click", () => createNote());
+  btnAdd.addEventListener("click", () => {
+    const note = createNote();
+    animateNotesAppear(note);
+  });
+
 })();
 
 function getRandomStickyColorClass() {
@@ -599,23 +605,39 @@ function getRandomStickyColorClass() {
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
-function createHelpStickyNote() {
+function createHelpText() {
   const canvas = document.getElementById("canvas");
 
-  if (document.getElementById("helpSticky")) return;
-
   const note = document.createElement("article");
-  note.id = "helpSticky";
+  note.addEventListener("mousemove", e => {
+    if (state.isDraggingNote) return;
+
+    const rect = note.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const isOnBorder =
+      x < DRAG_BORDER_SIZE ||
+      x > rect.width - DRAG_BORDER_SIZE ||
+      y < DRAG_BORDER_SIZE ||
+      y > rect.height - DRAG_BORDER_SIZE;
+
+    note.style.cursor = isOnBorder ? "grab" : "default";
+  });
+
+
+
+  note.dataset.help = "true";
   note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
-  note.style.left = "1500px";
-  note.style.top = "80px";
+  note.style.left = "1545px";
+  note.style.top = "60px";
   note.style.zIndex = 1000;
 
   const content = document.createElement("div");
   content.className = "sticky-note__content sticky-note__content--readonly";
 
   const rows = [
-    { titolo: "Comandi" },
+    { titolo: "Comandi Testo" },
     { icon: "img/leftClick.png", text: "Segna parola nella lista" },
     { icon: "img/rightClick.png", text: "Leggi dalla parola selezionata" },
     { icon: "", text: "" },
@@ -662,11 +684,103 @@ function createHelpStickyNote() {
   canvas.appendChild(note);
 }
 
+function createHelpStickyNote() {
+  const canvas = document.getElementById("canvas");
+
+  const note = document.createElement("article");
+  note.addEventListener("mousemove", e => {
+    if (state.isDraggingNote) return;
+
+    const rect = note.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const isOnBorder =
+      x < DRAG_BORDER_SIZE ||
+      x > rect.width - DRAG_BORDER_SIZE ||
+      y < DRAG_BORDER_SIZE ||
+      y > rect.height - DRAG_BORDER_SIZE;
+
+    note.style.cursor = isOnBorder ? "grab" : "default";
+  });
+
+
+
+  note.dataset.help = "true";
+  note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
+  note.style.left = "80px";
+  note.style.top = "450px";
+  note.style.zIndex = 1000;
+
+  const content = document.createElement("div");
+  content.className = "sticky-note__content sticky-note__content--readonly";
+
+  const rows = [
+    { titolo: "Comandi Post-it" },
+    { icon: "img/leftClick.png", text: "Trascina la parola in un post-it per copiarla" },
+    { icon: "img/leftClick.png", text: "Trascina la parola su una parola della lista per unirla" },
+    { icon: "img/rightClick.png", text: "Cancella la parola dalla lista" }
+  ];
+
+  rows.forEach(row => {
+    if (row.titolo) {
+      const title = document.createElement("h3");
+      title.className = "sticky-note__title";
+      title.textContent = row.titolo;
+      note.appendChild(title);
+      return;
+    }
+
+    if (!row.icon && !row.text) {
+      content.appendChild(document.createElement("hr"));
+      return;
+    }
+
+    const line = document.createElement("div");
+    line.className = "help-line";
+
+    if (row.icon) {
+      const img = document.createElement("img");
+      img.src = row.icon;
+      img.className = "help-icon";
+      line.appendChild(img);
+    }
+
+    const span = document.createElement("span");
+    span.textContent = row.text;
+
+    line.appendChild(span);
+    content.appendChild(line);
+  });
+
+  note.appendChild(content);
+  note.addEventListener("mousedown", handleNoteMouseDown);
+  canvas.appendChild(note);
+}
+
 
 window.createStickyNote = function () {
   const canvas = document.getElementById("canvas");
 
   const note = document.createElement("article");
+
+  note.addEventListener("mousemove", e => {
+    if (state.isDraggingNote) return;
+
+    const rect = note.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const isOnBorder =
+      x < DRAG_BORDER_SIZE ||
+      x > rect.width - DRAG_BORDER_SIZE ||
+      y < DRAG_BORDER_SIZE ||
+      y > rect.height - DRAG_BORDER_SIZE;
+
+    note.style.cursor = isOnBorder ? "grab" : "default";
+  });
+
+  note.dataset.type = "list";
   note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
   note.style.left = "120px";
   note.style.top = "120px";
@@ -685,6 +799,12 @@ window.createStickyNote = function () {
   return note;
 };
 
+function cleanWord(word) {
+  return word
+    .replace(/^[^a-zA-ZÀ-ÿ0-9]+/, "") // rimuove simboli iniziali
+    .replace(/[^a-zA-ZÀ-ÿ0-9]+$/, "") // rimuove simboli finali
+    .trim();
+}
 
 function addWordToSticky(word) {
   if (!activeStickyNote) {
@@ -696,22 +816,113 @@ function addWordToSticky(word) {
   const span = document.createElement("span");
   span.className = "sticky-word";
   span.textContent = word;
+  span.draggable = true;
 
-  span.addEventListener("click", () => {
+  span.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", span.textContent);
+    e.dataTransfer.setData("source-id", span.dataset.id);
+    e.dataTransfer.setData("source-el", "sticky-word");
+    span.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+
+  span.addEventListener("dragend", () => {
+    span.classList.remove("dragging");
+  });
+
+
+  span.addEventListener("dragover", e => {
+    e.preventDefault();
+    span.classList.add("merge-hover");
+  });
+
+  span.addEventListener("dragleave", () => {
+    span.classList.remove("merge-hover");
+  });
+
+  span.addEventListener("drop", e => {
+    e.preventDefault();
+    span.classList.remove("merge-hover");
+
+    const draggedEl = document.querySelector(".sticky-word.dragging");
+    if (!draggedEl || draggedEl === span) return;
+
+    span.textContent = `${span.textContent} ${draggedEl.textContent}`;
+    draggedEl.remove();
+  });
+
+  span.addEventListener("contextmenu", e => {
+    e.preventDefault();
     span.remove();
   });
 
   content.appendChild(span);
 }
 
-function isOverDeleteZone(note) {
-  const noteRect = note.getBoundingClientRect();
-  const deleteRect = deleteDropzone.getBoundingClientRect();
+document.addEventListener("mousedown", e => {
+  if (e.target.classList.contains("sticky-word")) {
+    e.stopPropagation();
+  }
+});
 
-  return !(
-    noteRect.right < deleteRect.left ||
-    noteRect.left > deleteRect.right ||
-    noteRect.bottom < deleteRect.top ||
-    noteRect.top > deleteRect.bottom
-  );
+function showHelpStickies() {
+  if (getHelpStickies().length > 0) return;
+
+  const notes = [
+    createHelpText(),
+    createHelpStickyNote(),
+  ];
+
+  animateNotesAppear(notes);
+
+  helpBtn.classList.remove("sticky-btn--secondary");
+  helpBtn.classList.add("sticky-btn--primary");
+  helpIcon.src = "img/helpIconW.png";
+}
+
+function destroyHelpStickies() {
+  const helps = getHelpStickies();
+  if (helps.length === 0) return;
+
+  helps.forEach(h => h.remove());
+
+  helpBtn.classList.remove("sticky-btn--primary");
+  helpBtn.classList.add("sticky-btn--secondary");
+  helpIcon.src = "img/helpIcon.png";
+}
+
+
+helpBtn.addEventListener("click", () => {
+  if (getHelpStickies().length === 0) {
+    showHelpStickies();
+  } else {
+    destroyHelpStickies();
+  }
+});
+
+function getHelpStickies() {
+  return document.querySelectorAll('[data-help="true"]');
+}
+
+function animateNotesAppear(notes) {
+  if (!notes) return;
+
+  const list = Array.isArray(notes) ? notes : [notes];
+
+  list.forEach(note => {
+    if (!note) return;
+
+    const rot = Math.random() * 6 - 3;
+
+    note.style.transform = `scale(0.8) rotate(${rot}deg)`;
+    note.style.opacity = "0";
+
+    requestAnimationFrame(() => {
+      note.style.transition =
+        "transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease";
+
+      note.style.transform = `scale(1) rotate(${rot}deg)`;
+      note.style.opacity = "1";
+    });
+  });
 }

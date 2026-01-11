@@ -58,15 +58,17 @@ body {
     padding: 1.5rem;
     padding-top: 2.5rem;
     background-color: var(--note-c-yellow);
-    box-shadow: 2px 4px 6px var(--app-c-shadow);
+    color: var(--note-c-text);
+    font-family: var(--app-font-note);
     border-radius: 2px;
     border-bottom-right-radius: 40px 10px;
-    font-family: var(--app-font-note);
-    color: var(--note-c-text);
-    transition: box-shadow 0.2s ease;
+    box-shadow: 2px 4px 6px var(--app-c-shadow);
     user-select: none;
-    will-change: transform, left, top;
     cursor: grab;
+    will-change: transform;
+    transition:
+        transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.3s ease;
 }
 
 .sticky-note--blue {
@@ -92,9 +94,8 @@ body {
     background-color: var(--tape-c-base);
     border-left: 2px dashed rgba(0, 0, 0, 0.05);
     border-right: 2px dashed rgba(0, 0, 0, 0.05);
-    opacity: 1;
-    transition: opacity 0.2s ease, transform 0.2s ease;
     pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .sticky-note::after {
@@ -104,11 +105,14 @@ body {
     right: 5px;
     width: 20px;
     height: 20px;
-    background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.07) 50%);
+    background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, .07) 50%);
     pointer-events: none;
 }
 
 .sticky-note__content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     width: 100%;
     height: 200px;
     background: transparent;
@@ -121,10 +125,12 @@ body {
     line-height: 1.5;
     overflow-y: auto;
 }
+
 .sticky-note--dragging {
     cursor: grabbing;
     box-shadow: 15px 25px 40px var(--app-c-shadow-lift);
     z-index: 9999 !important;
+    transition: none !important;
 }
 
 .sticky-note--dragging::before {
@@ -133,7 +139,8 @@ body {
 }
 
 .sticky-note--animate-drop {
-    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transition:
+        transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
         box-shadow 0.3s ease;
 }
 
@@ -173,6 +180,7 @@ body {
 .sticky-btn--primary {
     background-color: #111;
     color: #fff;
+    border: solid 1px;
 }
 
 .sticky-btn--secondary {
@@ -185,7 +193,9 @@ body {
     background-color: #f9fafb;
 }
 
-#mediaToolbar, #deleteToolbar {
+#mediaToolbar,
+#deleteToolbar,
+#helpToolbar {
     bottom: 50px;
 }
 
@@ -193,7 +203,12 @@ body {
     justify-items: center;
 }
 
-#mediaToolbar > *:last-child {
+.borderPosition {
+    justify-items: right;
+    margin-right: 2%;
+}
+
+#mediaToolbar>*:last-child {
     margin-left: 50px;
 }
 
@@ -218,7 +233,7 @@ body {
     border-color: #3b82f6;
 }
 
-.content{
+.content {
     display: flex;
     flex-direction: row;
     vertical-align: middle;
@@ -272,7 +287,8 @@ body {
     transition: background 0.2s ease;
 }
 
-#volumeSlider, #speedSlider {
+#volumeSlider,
+#speedSlider {
     width: 0;
     opacity: 0;
     pointer-events: none;
@@ -284,13 +300,15 @@ body {
     background: #f7f7f7;
 }
 
-.volumeControl:hover #volumeSlider, .volumeControl:hover #speedSlider {
+.volumeControl:hover #volumeSlider,
+.volumeControl:hover #speedSlider {
     width: 80px;
     opacity: 1;
     pointer-events: auto;
 }
 
-#volumeSlider, #speedSlider {
+#volumeSlider,
+#speedSlider {
     appearance: none;
     height: 4px;
     background: #d1d5db;
@@ -298,7 +316,8 @@ body {
     margin: 0;
 }
 
-#volumeSlider::-webkit-slider-thumb, #speedSlider::-webkit-slider-thumb {
+#volumeSlider::-webkit-slider-thumb,
+#speedSlider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 12px;
@@ -308,11 +327,11 @@ body {
     cursor: pointer;
 }
 
-#cmapBtn {
-    padding: 5px;
+#cmapBtn, #helpBtn {
+    padding: 4px;
 }
 
-#cmapIcon {
+#cmapIcon, #helpIcon {
     opacity: 0.9;
 }
 
@@ -341,7 +360,7 @@ body {
     max-height: 70%;
     padding: 30px;
     background: #fff;
-    box-shadow: 0 20px 60px rgba(0,0,0,.15);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .15);
     border-radius: 6px;
     overflow-y: auto;
     font-family: "Inter", sans-serif;
@@ -407,26 +426,35 @@ body {
     padding: 8px;
 }
 
+#helpToolbar {
+    padding: 14px;
+}
 
 .sticky-note__content--readonly {
-  pointer-events: auto;
-  user-select: none;
+    pointer-events: auto;
+    user-select: none;
 }
 
 .help-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
 }
 
 .help-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
 }
 
 #helpSticky h3 {
     margin-top: 0px;
+}
+
+@media (max-width: 800px) {
+    .borderPosition {
+        display: none;
+    }
 }
