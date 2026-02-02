@@ -29,6 +29,9 @@
             </nav>
 
             <nav id="mediaToolbar" class="toolbar hidden" role="toolbar">
+                <button class="mediaControl" id="settingsBtn"><img class="icon" id="settingsIcon"
+                        src="img/settingsIcon.png"></button>
+                <span class="vBar"></span>
                 <button class="mediaControl" id="playPauseBtn"><img class="icon" id="playPauseIcon"
                         src="img/playIcon.png"></button>
                 <button class="mediaControl" id="stopBtn"><img class="icon" src="img/stopIcon.png"></button>
@@ -58,6 +61,24 @@
             </nav>
         </div>
     </main>
+
+    <!-- SETTINGS OVERLAY -->
+<div id="settingsOverlay" class="settings-overlay hidden">
+  <div class="settings-panel">
+    <div class="settings-header">
+      <h3>Settings</h3>
+      <button id="closeSettings" class="settings-close">✕</button>
+    </div>
+
+    <ul class="settings-list">
+      <li>Change font</li>
+      <li>Change font size</li>
+      <li>Lenguage</li>
+    </ul>
+    
+  </div>
+</div>
+
     <script src="JS/Scripts.js" defer></script>
 </body>
 

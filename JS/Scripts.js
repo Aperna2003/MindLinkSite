@@ -9,7 +9,7 @@ const audioState = {
   rate: 1
 };
 
-/* ===== READER STATE ===== */
+/* ===== READER STATE ===== 
 const readerState = {
   words: [],
   index: 0,
@@ -17,13 +17,255 @@ const readerState = {
   sentenceWords: [],
   sentenceIndex: 0,
   speaking: false
+};*/
+
+const readerState = {
+  words: [],
+
+  index: 0,              // indice globale
+  sentenceStart: 0,      // inizio frase
+  sentenceIndex: 0,      // parole già lette NELLA FRASE
+  speaking: false
 };
+
+
+
+let currentLang = "it-IT";
+
+let voices = [];
+
+function loadVoices() {
+  voices = window.speechSynthesis.getVoices();
+}
+loadVoices();
+window.speechSynthesis.onvoiceschanged = loadVoices;
+
+function pickVoiceForLang(lang) {
+  if (!voices.length) return null;
+
+  const l = lang.toLowerCase();
+  // prima prova match esatto (es: en-US)
+  let v = voices.find(x => (x.lang || "").toLowerCase() === l);
+  if (v) return v;
+
+  // poi match per prefisso (es: en)
+  const prefix = l.split("-")[0];
+  v = voices.find(x => (x.lang || "").toLowerCase().startsWith(prefix));
+  return v || null;
+}
+
+function setSpeechLanguage(lang) {
+  currentLang = lang;
+
+  if (tts.playing || tts.paused) {
+    const idx = (tts.progressIndex ?? readerState.index ?? 0);
+    startReadingFromIndex(idx);
+  }
+}
+
+
+
+const tts = {
+  playing: false,
+  paused: false,
+  queued: 0,
+  maxQueue: 4,
+  nextIndex: 0,
+
+  currentStart: null,     // start del chunk in corso
+  progressIndex: null,    // punto di resume globale
+  lastWordIndex: null,    // ultima parola COMPLETATA (globale)
+};
+
+function countWords(str) {
+  const s = (str || "").trim();
+  if (!s) return 0;
+  return s.split(/\s+/).length;
+}
+
+
+
+function synthIsActive() {
+  return synth.speaking || synth.pending;
+}
+
 
 
 /* ===== SPEECH SYNTH ===== */
 const synth = window.speechSynthesis;
 let currentUtterance = null;
 let activeStickyNote = null;
+
+function setSpeechLanguage(lang) {
+  currentLang = lang;
+
+  if (tts.playing || tts.paused) {
+    // riparte dalla frase corrente (punto sicuro)
+    startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
+  }
+}
+
+
+tts.maxQueue = 4;
+
+function normalizeMathForTTS(text, lang = "it-IT") {
+  const it = lang.startsWith("it");
+  const en = lang.startsWith("en");
+
+  const dict = it ? {
+    // IT
+"∀": " per ogni ",
+"∃": " esiste ",
+"∧": " e ",
+"∨": " o ",
+"¬": " non ",
+"⇒": " implica ",
+"⇐": " è implicato da ",
+"⇔": " se e solo se ",
+"∴": " quindi ",
+"∵": " perché ",
+"∅": " insieme vuoto ",
+"ℕ": " insieme dei naturali ",
+"ℤ": " insieme degli interi ",
+"ℚ": " insieme dei razionali ",
+"ℝ": " insieme dei reali ",
+
+    "±": " più o meno ",
+    "∓": " meno o più ",
+    "×": " per ",
+    "⋅": " per ",
+    "·": " per ",
+    "÷": " diviso ",
+    "∕": " diviso ",
+    "√": " radice di ",
+    "∑": " sommatoria ",
+    "∏": " produttoria ",
+    "∫": " integrale ",
+    "∞": " infinito ",
+    "≈": " circa uguale a ",
+    "≃": " circa uguale a ",
+    "≅": " congruente a ",
+    "≠": " diverso da ",
+    "≤": " minore o uguale a ",
+    "≥": " maggiore o uguale a ",
+    "<": " minore di ",
+    ">": " maggiore di ",
+    "=": " uguale ",
+    "∈": " appartenente a ",
+    "∉": " non appartenente a ",
+    "⊂": " sottoinsieme di ",
+    "⊆": " sottoinsieme o uguale a ",
+    "⊃": " contiene ",
+    "⊇": " contiene o uguale a ",
+    "∪": " unione ",
+    "∩": " intersezione ",
+    "→": " tende a ",
+    "↦": " mappa in ",
+    "⇒": " implica ",
+    "⇔": " se e solo se ",
+    "∝": " proporzionale a ",
+    "°": " gradi ",
+    "π": " pi greco ",
+    "θ": " teta ",
+    "α": " alfa ",
+    "β": " beta ",
+    "γ": " gamma ",
+    "Δ": " delta ",
+    "δ": " delta ",
+    "λ": " lambda ",
+    "μ": " mu ",
+    "σ": " sigma ",
+    "Σ": " sigma ",
+    "Ω": " omega ",
+    "ω": " omega ",
+    "∂": " derivata parziale ",
+    "∇": " nabla ",
+    "^": " elevato alla ",
+  } : en ? {
+    // EN
+"∀": " for all ",
+"∃": " there exists ",
+"∧": " and ",
+"∨": " or ",
+"¬": " not ",
+"⇒": " implies ",
+"⇐": " is implied by ",
+"⇔": " if and only if ",
+"∴": " therefore ",
+"∵": " because ",
+"∅": " empty set ",
+"ℕ": " natural numbers ",
+"ℤ": " integers ",
+"ℚ": " rational numbers ",
+"ℝ": " real numbers ",
+
+    "±": " plus or minus ",
+    "∓": " minus or plus ",
+    "×": " times ",
+    "⋅": " times ",
+    "·": " times ",
+    "÷": " divided by ",
+    "∕": " divided by ",
+    "√": " square root of ",
+    "∑": " summation ",
+    "∏": " product ",
+    "∫": " integral ",
+    "∞": " infinity ",
+    "≈": " approximately equal to ",
+    "≠": " not equal to ",
+    "≤": " less than or equal to ",
+    "≥": " greater than or equal to ",
+    "<": " less than ",
+    ">": " greater than ",
+    "=": " equals ",
+    "∈": " element of ",
+    "∉": " not an element of ",
+    "⊂": " subset of ",
+    "⊆": " subset or equal to ",
+    "∪": " union ",
+    "∩": " intersection ",
+    "→": " tends to ",
+    "⇒": " implies ",
+    "⇔": " if and only if ",
+    "∝": " proportional to ",
+    "°": " degrees ",
+    "π": " pi ",
+    "θ": " theta ",
+    "α": " alpha ",
+    "β": " beta ",
+    "γ": " gamma ",
+    "Δ": " delta ",
+    "λ": " lambda ",
+    "μ": " mu ",
+    "σ": " sigma ",
+    "Ω": " omega ",
+    "∂": " partial derivative ",
+    "∇": " nabla ",
+    "^": " to the power of ",
+  } : {};
+
+  // sostituzioni dirette simboli
+  let out = text;
+  for (const [sym, spoken] of Object.entries(dict)) {
+    out = out.split(sym).join(spoken);
+  }
+
+  // gestione frazioni tipo 1/2 (non perfetta ma utile)
+  out = out.replace(/(\d+)\s*\/\s*(\d+)/g, it ? " $1 fratto $2 " : " $1 over $2 ");
+
+  // gestione esponenti tipo x^2 oppure 10^3
+  out = out.replace(/([a-zA-Z0-9]+)\s*\^\s*([a-zA-Z0-9]+)/g,
+    it ? " $1 elevato alla $2 " : " $1 to the power of $2 ");
+
+  // pulizia spazi
+  out = out.replace(/\s+/g, " ").trim();
+  return out;
+}
+
+
+let pdfSpanId = 0;
+let suppressSelectionSaveUntil = 0;
+
 
 
 const playPauseBtn = document.getElementById("playPauseBtn");
@@ -47,6 +289,26 @@ const deleteDropzone = document.getElementById("deleteDropzone");
 const helpToolbar = document.getElementById("helpToolbar");
 const helpBtn = document.getElementById("helpBtn");
 const helpIcon = document.getElementById("helpIcon");
+
+const settingsBtn = document.getElementById("settingsBtn");
+const settingsOverlay = document.getElementById("settingsOverlay");
+const closeSettings = document.getElementById("closeSettings");
+
+settingsBtn.addEventListener("click", () => {
+  settingsOverlay.classList.remove("hidden");
+});
+
+closeSettings.addEventListener("click", () => {
+  settingsOverlay.classList.add("hidden");
+});
+
+// click fuori dal pannello → chiude
+settingsOverlay.addEventListener("click", (e) => {
+  if (e.target === settingsOverlay) {
+    settingsOverlay.classList.add("hidden");
+  }
+});
+
 
 let helpVisible = false;
 
@@ -130,51 +392,208 @@ async function handleFile(file) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
 
-    content.items.forEach(item => {
-      item.str.split(/\s+/).forEach(word => {
-        if (!word) return;
+content.items.forEach(item => {
 
-        const span = document.createElement("span");
-        span.className = "pdf-word";
-        span.textContent = word + " ";
+  // ✅ dimensione stimata dal PDF
+  const fontSize = Math.abs(item.transform[3]);
 
-        span.addEventListener("click", (e) => {
-          e.preventDefault();
+  // scegli stile in base alla grandezza
+  let sizeClass = "pdf-text";
 
-          const rawWord = span.textContent.trim();
-          const cleanedWord = cleanWord(rawWord);
+  if (fontSize >= 18) sizeClass = "pdf-title";
+  else if (fontSize >= 14) sizeClass = "pdf-subtitle";
 
-          if (cleanedWord) {
-            addWordToSticky(cleanedWord);
-          }
+  item.str.split(/\s+/).forEach(word => {
+    if (!word) return;
 
-        });
+    const span = document.createElement("span");
+    span.dataset.pid = String(++pdfSpanId); // ✅ id univoco per QUELLA parola nel PDF
+    span.className = `pdf-word ${sizeClass}`;
+    span.textContent = word + " ";
 
-        span.addEventListener("contextmenu", (e) => {
-          e.preventDefault(); // blocca menu browser
+span.addEventListener("dblclick", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
 
-          synth.cancel();
+  suppressSelectionSaveUntil = Date.now() + 350;
 
-          readerState.index = readerState.words.indexOf(span);
-          audioState.playing = true;
-          readerState.speaking = false;
+  const sel = window.getSelection();
+  let picked = (sel && !sel.isCollapsed) ? sel.toString().trim() : "";
+  if (!picked) picked = span.textContent.trim();
 
-          playPauseIcon.src = "img/pauseIcon.png";
+  if (picked) addWordToStickyUnique(picked, span);
+highlightSpan(span);
 
-          requestAnimationFrame(speakSentence);
-        });
+  if (sel) sel.removeAllRanges();
+});
 
 
 
-        pdfSheet.appendChild(span);
-        readerState.words.push(span);
-      });
-    });
+span.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+
+  // 🔥 reset TOTALE stato lettura
+  synth.cancel();
+
+  audioState.playing = true;
+  readerState.speaking = false;
+
+  readerState.index = readerState.words.indexOf(span);
+  readerState.sentenceStart = readerState.index;
+  readerState.sentenceIndex = 0;
+
+  playPauseIcon.src = "img/pauseIcon.png";
+
+  // ▶️ avvio pulito da QUI
+  requestAnimationFrame(speakSentence);
+});
+
+
+    pdfSheet.appendChild(span);
+    readerState.words.push(span);
+  });
+
+  // ✅ accapo vero dal PDF
+  if (item.hasEOL) {
+    pdfSheet.appendChild(document.createElement("br"));
+  }
+});
+
 
     pdfSheet.appendChild(document.createElement("br"));
     pdfSheet.appendChild(document.createElement("br"));
   }
 }
+
+
+pdfSheet.addEventListener("mouseup", () => {
+  if (Date.now() < suppressSelectionSaveUntil) return;
+
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return;
+
+  const range = sel.getRangeAt(0);
+  if (!pdfSheet.contains(range.commonAncestorContainer)) return;
+
+  // ✅ prendo tutti gli span parola intercettati dalla selezione
+  const spans = Array.from(pdfSheet.querySelectorAll(".pdf-word"))
+    .filter(sp => range.intersectsNode(sp));
+
+  if (!spans.length) return;
+
+  // ✅ creo UN SOLO testo con tutte le parole selezionate
+  const phrase = spans
+    .map(s => s.textContent.trim())
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!phrase) return;
+
+  // ✅ aggiungo UNA SOLA voce in lista, collegata a TUTTI gli span selezionati
+  addWordToStickyUnique(phrase, spans);
+
+  // ✅ evidenzio tutti gli span selezionati
+  highlightSpans(spans);
+
+  sel.removeAllRanges();
+});
+
+
+
+function highlightSpan(span) {
+  if (!span) return;
+  span.classList.add("saved");
+  span.dataset.saved = "1";
+  span.classList.add("flash");
+  setTimeout(() => span.classList.remove("flash"), 300);
+}
+
+function highlightSpans(spans) {
+  (spans || []).forEach(highlightSpan);
+}
+
+function highlightSelectionInPdf() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return;
+
+  const range = sel.getRangeAt(0);
+
+  // evidenzia tutti gli span .pdf-word che intersecano la selezione
+  const spans = Array.from(pdfSheet.querySelectorAll(".pdf-word"));
+  spans.forEach(sp => {
+    if (range.intersectsNode(sp)) highlightSpan(sp);
+  });
+}
+
+let readingSpan = null;
+
+function setReadingHighlight(idx) {
+  const spans = readerState.words;
+  if (!spans || !spans.length) return;
+
+  // clamp
+  const i = Math.max(0, Math.min(idx, spans.length - 1));
+  const sp = spans[i];
+  if (!sp) return;
+
+  // rimuovi vecchio
+  if (readingSpan && readingSpan !== sp) {
+    readingSpan.classList.remove("reading");
+  }
+
+  // aggiungi nuovo
+  sp.classList.add("reading");
+  readingSpan = sp;
+
+  // (opzionale) autoscroll per tenerla visibile
+  sp.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+function clearReadingHighlight() {
+  if (readingSpan) {
+    readingSpan.classList.remove("reading");
+    readingSpan = null;
+  }
+}
+
+function highlightReadingWord(index) {
+  clearReadingHighlight();
+
+  const span = readerState.words[index];
+  if (!span) return;
+
+  span.classList.add("reading");
+
+  // scroll morbido verso la parola
+  span.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+}
+
+function buildSpeakData(sentenceWords, lang) {
+  const speakWords = [];
+  const tokenMap = []; // speakWordIndex → tokenIndex
+
+  sentenceWords.forEach((token, tokenIndex) => {
+    const normalized = normalizeMathForTTS(token, lang);
+    const parts = normalized.split(/\s+/).filter(Boolean);
+
+    parts.forEach(p => {
+      speakWords.push(p);
+      tokenMap.push(tokenIndex);
+    });
+  });
+
+  return {
+    speakText: speakWords.join(" "),
+    tokenMap
+  };
+}
+
+
+
 
 function speakSentence() {
   if (!audioState.playing) return;
@@ -192,22 +611,36 @@ function speakSentence() {
     if (/[.!?]$/.test(word)) break;
     i++;
   }
+const rawSentence = readerState.sentenceWords.join(" ");
+const { speakText, tokenMap } =  buildSpeakData(readerState.sentenceWords, currentLang);
 
-  const sentenceText = readerState.sentenceWords.join(" ");
+currentUtterance = new SpeechSynthesisUtterance(speakText);
+currentUtterance.lang = currentLang;
+currentUtterance.volume = audioState.volume / 100;
+currentUtterance.rate = audioState.rate;
 
-  currentUtterance = new SpeechSynthesisUtterance(sentenceText);
-  currentUtterance.lang = "it-IT";
-  currentUtterance.volume = audioState.volume / 100;
-  currentUtterance.rate = audioState.rate;
 
   readerState.speaking = true;
 
-  currentUtterance.onboundary = e => {
-    if (e.name === "word") {
-      const spoken = sentenceText.slice(0, e.charIndex);
-      readerState.sentenceIndex = spoken.trim().split(/\s+/).length;
-    }
-  };
+let lastTokenIdx = -1;
+
+currentUtterance.onboundary = (e) => {
+  if (e.name !== "word") return;
+
+  const spokenWords =
+    speakText.slice(0, e.charIndex).trim().split(/\s+/);
+
+  const speakWordIndex = spokenWords.length - 1;
+  const tokenIdx = tokenMap[speakWordIndex];
+
+  // 🔒 avanza SOLO quando cambia token PDF
+  if (tokenIdx !== lastTokenIdx) {
+    readerState.sentenceIndex = tokenIdx;
+    lastTokenIdx = tokenIdx;
+  }
+};
+
+
 
   currentUtterance.onend = () => {
     readerState.speaking = false;
@@ -222,6 +655,209 @@ function speakSentence() {
   synth.speak(currentUtterance);
 }
 
+function buildNextSentence(fromIdx) {
+  const parts = [];
+  let i = fromIdx;
+
+  const MAX_WORDS = 40;     // sicurezza: migliora la reattività del pause
+  const MAX_CHARS = 260;    // idem
+  let lastSoftCut = -1;     // , ; :
+
+  while (i < readerState.words.length) {
+    const w = readerState.words[i].textContent.trim();
+    if (w) {
+      parts.push(w);
+
+      if (/[,:;]$/.test(w)) lastSoftCut = i + 1; // cut DOPO questo token
+
+      // fine frase vera
+      if (SENTENCE_END_REGEX.test(w)) {
+        i++;
+        break;
+      }
+
+      // se sta diventando troppo lunga, taglia su virgola/;/: se possibile
+      if (parts.length >= MAX_WORDS || parts.join(" ").length >= MAX_CHARS) {
+        if (lastSoftCut !== -1 && lastSoftCut > fromIdx + 5) {
+          i = lastSoftCut;
+        } else {
+          i++; // fallback: taglia dove sei
+        }
+        break;
+      }
+    }
+    i++;
+  }
+
+  return { text: parts.join(" "), nextIndex: i };
+}
+
+
+function fillQueue() {
+  while (tts.playing && tts.queued < tts.maxQueue && tts.nextIndex < readerState.words.length) {
+    enqueueSentence();
+  }
+}
+
+
+
+
+
+
+
+
+/**
+ * Trasforma una lista di token ORIGINALI (1 token = 1 span/parola PDF)
+ * in speakText e crea una mappa speakWordIndex -> tokenIndex
+ */
+function buildSpeakTextAndMap(tokens, lang) {
+  const speakWords = [];
+  const map = [];     // speakWordIndex -> tokenIndex
+  const starts = [];  // speakWordIndex -> start charIndex nel speakText finale
+
+  tokens.forEach((tok, tokenIdx) => {
+    const normalized = normalizeMathForTTS(tok, lang);
+    const ws = (normalized || "").split(/\s+/).filter(Boolean);
+
+    ws.forEach(w => {
+      speakWords.push(w);
+      map.push(tokenIdx);
+    });
+  });
+
+  // calcola gli start charIndex di ogni parola nel join con spazio singolo
+  let pos = 0;
+  for (let i = 0; i < speakWords.length; i++) {
+    starts[i] = pos;
+    pos += speakWords[i].length + 1; // +1 spazio
+  }
+
+  return { speakText: speakWords.join(" "), map, starts, speakWords };
+}
+
+function wordIndexFromCharIndex(starts, charIndex) {
+  // trova l'ultima parola con start <= charIndex (binary search)
+  let lo = 0, hi = starts.length - 1, ans = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (starts[mid] <= charIndex) {
+      ans = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return ans;
+}
+
+function countWordsUpToChar(str, charIndex) {
+  const s = (str || "").slice(0, charIndex).trim();
+  if (!s) return 0;
+  return s.split(/\s+/).length;
+}
+
+
+
+
+
+
+
+function enqueueSentence() {
+  const startIdx = tts.nextIndex;
+  const { text, nextIndex } = buildNextSentence(startIdx);
+  if (!text) {
+    tts.nextIndex = Math.min(startIdx + 1, readerState.words.length);
+    return;
+  }
+
+  // ✅ tokens originali (uno span = uno token)
+  const tokenSpans = readerState.words.slice(startIdx, nextIndex);
+  const tokens = tokenSpans.map(sp => sp.textContent.trim()).filter(Boolean);
+
+  // ✅ speakText + mappa parole pronunciate -> token originale
+const { speakText, map, starts } = buildSpeakTextAndMap(tokens, currentLang);
+
+  const u = new SpeechSynthesisUtterance(speakText);
+  u.lang = currentLang;
+  u.voice = pickVoiceForLang(currentLang) || null;
+  u.volume = audioState.volume / 100;
+  u.rate = audioState.rate;
+
+
+  let boundaryCount = -1;       // conta i "word boundary" ricevuti
+  let lastSpokenWordIdx = -1;   // evita regressi
+
+  u.onstart = () => {
+    tts.currentStart = startIdx;
+
+    if (tts.progressIndex == null) tts.progressIndex = startIdx;
+    if (tts.lastWordIndex == null) tts.lastWordIndex = startIdx;
+
+    readerState.index = startIdx;
+
+  };
+
+u.onboundary = (e) => {
+  if (e.name !== "word") return;
+
+  // calcolo indice (come già fai)
+  boundaryCount++;
+
+  const idxFromChar = wordIndexFromCharIndex(starts, e.charIndex);
+  let spokenWordIdx = Math.max(boundaryCount, idxFromChar, lastSpokenWordIdx + 1);
+  spokenWordIdx = Math.min(spokenWordIdx, map.length - 1);
+  lastSpokenWordIdx = spokenWordIdx;
+
+  const tokenIndex = map[spokenWordIdx] ?? 0;
+  const globalWordIndex = startIdx + tokenIndex;
+
+  // ✅ SOLO MEMORIZZAZIONE
+  tts.lastWordIndex = globalWordIndex;
+  tts.progressIndex = globalWordIndex;
+  readerState.index = globalWordIndex;
+};
+
+
+  u.onend = () => {
+    // chunk finito -> avanza sicuro
+    tts.progressIndex = nextIndex;
+    tts.lastWordIndex = nextIndex;
+    readerState.index = nextIndex;
+
+    tts.queued = Math.max(0, tts.queued - 1);
+    fillQueue();
+  };
+
+  u.onerror = () => {
+    tts.queued = Math.max(0, tts.queued - 1);
+    fillQueue();
+  };
+
+  tts.nextIndex = nextIndex;
+  tts.queued++;
+
+  synth.speak(u);
+}
+
+function highlightReadingWord(index) {
+  clearReadingHighlight();
+
+  const span = readerState.words[index];
+  if (!span) return;
+
+  span.classList.add("reading");
+  readingSpan = span;
+
+  span.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+}
+
+
+
+
+
 function restartFromLastWord() {
   if (!audioState.playing) return;
 
@@ -234,7 +870,7 @@ function restartFromLastWord() {
   requestAnimationFrame(speakSentence);
 }
 
-
+/*
 playPauseBtn.addEventListener("click", () => {
   if (!audioState.playing) {
     audioState.playing = true;
@@ -259,9 +895,88 @@ stopBtn.addEventListener("click", () => {
   synth.cancel();
   playPauseIcon.src = "img/playIcon.png";
 });
+*/
+
+function startReadingFromIndex(idx) {
+  synth.cancel();
+
+  tts.playing = true;
+  tts.paused = false;
+  tts.queued = 0;
+
+  tts.nextIndex = idx;
+  tts.currentStart = idx;
+  tts.progressIndex = idx;
+
+  playPauseIcon.src = "img/pauseIcon.png";
+  fillQueue();
+}
+
+
+playPauseBtn.addEventListener("click", () => {
+
+  // ▶️ PLAY / RESUME
+  if (!audioState.playing) {
+    audioState.playing = true;
+    playPauseIcon.src = "img/pauseIcon.png";
+
+    // riparte ESATTAMENTE dall’ultima parola letta
+    restartFromLastWord();
+    return;
+  }
+
+  // ⏸ PAUSA SECCA
+  audioState.playing = false;
+  playPauseIcon.src = "img/playIcon.png";
+
+  // taglia immediatamente la frase
+  synth.cancel();
+  readerState.speaking = false;
+
+readerState.index =
+  readerState.sentenceStart + readerState.sentenceIndex;
+
+});
+
+stopBtn.addEventListener("click", () => {
+  // ferma audio subito
+  synth.cancel();
+
+  // reset stato audio
+  audioState.playing = false;
+  playPauseIcon.src = "img/playIcon.png";
+
+  // reset stato lettura
+  readerState.index = 0;
+  readerState.sentenceStart = 0;
+  readerState.sentenceIndex = 0;
+  readerState.speaking = false;
+});
 
 
 
+
+
+
+
+function startReadingFromIndex(idx) {
+  synth.cancel();
+
+  tts.playing = true;
+  tts.paused = false;
+  tts.queued = 0;
+
+  tts.nextIndex = idx;
+
+  // NON resettare lastWordIndex a 0 se idx è > 0
+  tts.currentStart = idx;
+  tts.progressIndex = idx;
+  tts.lastWordIndex = idx;
+
+  fillQueue();
+}
+
+/*
 volumeSlider.addEventListener("input", () => {
   audioState.volume = parseInt(volumeSlider.value, 10);
   updateVolumeIcon(audioState.volume);
@@ -273,6 +988,18 @@ speedSlider.addEventListener("input", () => {
   restartFromLastWord();
 });
 
+*/
+
+volumeSlider.addEventListener("input", () => {
+  audioState.volume = parseInt(volumeSlider.value, 10);
+  updateVolumeIcon(audioState.volume);
+  if (tts.playing || tts.paused) startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
+});
+
+speedSlider.addEventListener("input", () => {
+  audioState.rate = parseFloat(speedSlider.value);
+  if (tts.playing || tts.paused) startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
+});
 
 
 
@@ -309,10 +1036,14 @@ volumeIcon.addEventListener("click", () => {
   }
 
   updateVolumeIcon(audioState.volume);
-
+/*
   if (audioState.playing) {
     restartFromLastWord();
-  }
+  }*/
+
+  if (tts.playing || tts.paused) startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
+
+
 
   console.log("MUTE TOGGLE →", audioState.volume);
 });
@@ -805,7 +1536,7 @@ function cleanWord(word) {
     .replace(/[^a-zA-ZÀ-ÿ0-9]+$/, "") // rimuove simboli finali
     .trim();
 }
-
+/*
 function addWordToSticky(word) {
   if (!activeStickyNote) {
     activeStickyNote = createStickyNote();
@@ -857,7 +1588,128 @@ function addWordToSticky(word) {
   });
 
   content.appendChild(span);
+}*/
+
+function addWordToSticky(word, sourceSpanOrSpans = null) {
+  if (!activeStickyNote) {
+    activeStickyNote = createStickyNote();
+  }
+
+  const content = activeStickyNote.querySelector(".sticky-note__content");
+
+  const span = document.createElement("span");
+  span.className = "sticky-word";
+  span.textContent = word;
+  span.draggable = true;
+
+  // ✅ supporta 1 span o array di span (selezione multipla)
+  const spansArr = Array.isArray(sourceSpanOrSpans)
+    ? sourceSpanOrSpans.filter(Boolean)
+    : (sourceSpanOrSpans ? [sourceSpanOrSpans] : []);
+
+  if (spansArr.length) {
+    span._pdfSpans = spansArr;
+
+    // firma unica basata sugli id dei pdf span (non sul testo!)
+    const sig = spansArr
+      .map(s => s.dataset.pid)
+      .filter(Boolean)
+      .join(",");
+
+    span.dataset.sig = sig;
+  }
+
+  span.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", span.textContent);
+    e.dataTransfer.setData("source-id", span.dataset.id);
+    e.dataTransfer.setData("source-el", "sticky-word");
+    span.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+
+  span.addEventListener("dragend", () => {
+    span.classList.remove("dragging");
+  });
+
+  span.addEventListener("dragover", e => {
+    e.preventDefault();
+    span.classList.add("merge-hover");
+  });
+
+  span.addEventListener("dragleave", () => {
+    span.classList.remove("merge-hover");
+  });
+
+  span.addEventListener("drop", e => {
+    e.preventDefault();
+    span.classList.remove("merge-hover");
+
+    const draggedEl = document.querySelector(".sticky-word.dragging");
+    if (!draggedEl || draggedEl === span) return;
+
+    // testo unito (come prima)
+    span.textContent = `${span.textContent} ${draggedEl.textContent}`;
+
+    // ✅ unisci anche i riferimenti ai pdf spans
+    const a = span._pdfSpans || [];
+    const b = draggedEl._pdfSpans || [];
+    const merged = [...a, ...b].filter(Boolean);
+
+    if (merged.length) {
+      span._pdfSpans = merged;
+      span.dataset.sig = merged
+        .map(s => s.dataset.pid)
+        .filter(Boolean)
+        .join(",");
+    }
+
+    draggedEl.remove();
+  });
+
+  span.addEventListener("contextmenu", e => {
+    e.preventDefault();
+
+    // ✅ togli evidenziazione per TUTTI gli span collegati
+    const linked = span._pdfSpans || [];
+    linked.forEach(s => {
+      s.classList.remove("saved");
+      s.dataset.saved = "0";
+    });
+
+    span.remove();
+  });
+
+  content.appendChild(span);
 }
+
+function addWordToStickyUnique(text, sourceSpanOrSpans = null) {
+  if (!text) return;
+
+  if (!activeStickyNote) activeStickyNote = createStickyNote();
+  const content = activeStickyNote.querySelector(".sticky-note__content");
+
+  const normalized = text.replace(/\s+/g, " ").trim();
+
+  // ✅ signature unica basata su pid (non sul testo)
+  const spansArr = Array.isArray(sourceSpanOrSpans)
+    ? sourceSpanOrSpans.filter(Boolean)
+    : (sourceSpanOrSpans ? [sourceSpanOrSpans] : []);
+
+  const sig = spansArr.length
+    ? spansArr.map(s => s.dataset.pid).filter(Boolean).join(",")
+    : "";
+
+  // se esiste GIÀ la stessa selezione (stessi pid), non inserirla
+  if (sig) {
+    const exists = Array.from(content.querySelectorAll(".sticky-word"))
+      .some(el => (el.dataset.sig || "") === sig);
+    if (exists) return;
+  }
+
+  addWordToSticky(normalized, spansArr.length ? spansArr : null);
+}
+
+
 
 document.addEventListener("mousedown", e => {
   if (e.target.classList.contains("sticky-word")) {
