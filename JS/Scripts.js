@@ -28,9 +28,41 @@ const readerState = {
   speaking: false
 };
 
-
-
 let currentLang = "it-IT";
+
+const languageMenu = document.getElementById("languageMenu");
+const languageOptions = languageMenu.querySelectorAll("[data-lang]");
+
+if (languageMenu) {
+  const defaultLangOption = languageMenu.querySelector(
+    `[data-lang="${currentLang}"]`
+  );
+
+  if (defaultLangOption) {
+    defaultLangOption.classList.add("active-lang");
+  }
+}
+
+languageOptions.forEach(option => {
+  option.addEventListener("click", function (e) {
+    e.stopPropagation();
+
+    const selectedLang = this.dataset.lang;
+    currentLang = selectedLang;
+
+    languageOptions.forEach(opt => {
+      opt.classList.remove("active-lang");
+    });
+
+    this.classList.add("active-lang");
+
+    if (tts.playing || tts.paused) {
+      startReadingFromIndex(tts.progressIndex ?? readerState.index ?? 0);
+    }
+
+    languageMenu.classList.remove("active");
+  });
+});
 
 let voices = [];
 
@@ -114,21 +146,21 @@ function normalizeMathForTTS(text, lang = "it-IT") {
 
   const dict = it ? {
     // IT
-"∀": " per ogni ",
-"∃": " esiste ",
-"∧": " e ",
-"∨": " o ",
-"¬": " non ",
-"⇒": " implica ",
-"⇐": " è implicato da ",
-"⇔": " se e solo se ",
-"∴": " quindi ",
-"∵": " perché ",
-"∅": " insieme vuoto ",
-"ℕ": " insieme dei naturali ",
-"ℤ": " insieme degli interi ",
-"ℚ": " insieme dei razionali ",
-"ℝ": " insieme dei reali ",
+    "∀": " per ogni ",
+    "∃": " esiste ",
+    "∧": " e ",
+    "∨": " o ",
+    "¬": " non ",
+    "⇒": " implica ",
+    "⇐": " è implicato da ",
+    "⇔": " se e solo se ",
+    "∴": " quindi ",
+    "∵": " perché ",
+    "∅": " insieme vuoto ",
+    "ℕ": " insieme dei naturali ",
+    "ℤ": " insieme degli interi ",
+    "ℚ": " insieme dei razionali ",
+    "ℝ": " insieme dei reali ",
 
     "±": " più o meno ",
     "∓": " meno o più ",
@@ -183,21 +215,21 @@ function normalizeMathForTTS(text, lang = "it-IT") {
     "^": " elevato alla ",
   } : en ? {
     // EN
-"∀": " for all ",
-"∃": " there exists ",
-"∧": " and ",
-"∨": " or ",
-"¬": " not ",
-"⇒": " implies ",
-"⇐": " is implied by ",
-"⇔": " if and only if ",
-"∴": " therefore ",
-"∵": " because ",
-"∅": " empty set ",
-"ℕ": " natural numbers ",
-"ℤ": " integers ",
-"ℚ": " rational numbers ",
-"ℝ": " real numbers ",
+    "∀": " for all ",
+    "∃": " there exists ",
+    "∧": " and ",
+    "∨": " or ",
+    "¬": " not ",
+    "⇒": " implies ",
+    "⇐": " is implied by ",
+    "⇔": " if and only if ",
+    "∴": " therefore ",
+    "∵": " because ",
+    "∅": " empty set ",
+    "ℕ": " natural numbers ",
+    "ℤ": " integers ",
+    "ℚ": " rational numbers ",
+    "ℝ": " real numbers ",
 
     "±": " plus or minus ",
     "∓": " minus or plus ",
@@ -392,72 +424,72 @@ async function handleFile(file) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
 
-content.items.forEach(item => {
+    content.items.forEach(item => {
 
-  // ✅ dimensione stimata dal PDF
-  const fontSize = Math.abs(item.transform[3]);
+      // ✅ dimensione stimata dal PDF
+      const fontSize = Math.abs(item.transform[3]);
 
-  // scegli stile in base alla grandezza
-  let sizeClass = "pdf-text";
+      // scegli stile in base alla grandezza
+      let sizeClass = "pdf-text";
 
-  if (fontSize >= 18) sizeClass = "pdf-title";
-  else if (fontSize >= 14) sizeClass = "pdf-subtitle";
+      if (fontSize >= 18) sizeClass = "pdf-title";
+      else if (fontSize >= 14) sizeClass = "pdf-subtitle";
 
-  item.str.split(/\s+/).forEach(word => {
-    if (!word) return;
+      item.str.split(/\s+/).forEach(word => {
+        if (!word) return;
 
-    const span = document.createElement("span");
-    span.dataset.pid = String(++pdfSpanId); // ✅ id univoco per QUELLA parola nel PDF
-    span.className = `pdf-word ${sizeClass}`;
-    span.textContent = word + " ";
+        const span = document.createElement("span");
+        span.dataset.pid = String(++pdfSpanId); // ✅ id univoco per QUELLA parola nel PDF
+        span.className = `pdf-word ${sizeClass}`;
+        span.textContent = word + " ";
 
-span.addEventListener("dblclick", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
+        span.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
 
-  suppressSelectionSaveUntil = Date.now() + 350;
+          suppressSelectionSaveUntil = Date.now() + 350;
 
-  const sel = window.getSelection();
-  let picked = (sel && !sel.isCollapsed) ? sel.toString().trim() : "";
-  if (!picked) picked = span.textContent.trim();
+          const sel = window.getSelection();
+          let picked = (sel && !sel.isCollapsed) ? sel.toString().trim() : "";
+          if (!picked) picked = span.textContent.trim();
 
-  if (picked) addWordToStickyUnique(picked, span);
-highlightSpan(span);
+          if (picked) addWordToStickyUnique(picked, span);
+          highlightSpan(span);
 
-  if (sel) sel.removeAllRanges();
-});
-
-
-
-span.addEventListener("contextmenu", (e) => {
-  e.preventDefault();
-
-  // 🔥 reset TOTALE stato lettura
-  synth.cancel();
-
-  audioState.playing = true;
-  readerState.speaking = false;
-
-  readerState.index = readerState.words.indexOf(span);
-  readerState.sentenceStart = readerState.index;
-  readerState.sentenceIndex = 0;
-
-  playPauseIcon.src = "img/pauseIcon.png";
-
-  // ▶️ avvio pulito da QUI
-  requestAnimationFrame(speakSentence);
-});
+          if (sel) sel.removeAllRanges();
+        });
 
 
-    pdfSheet.appendChild(span);
-    readerState.words.push(span);
-  });
 
-  // ✅ accapo vero dal PDF
-  if (item.hasEOL) {
-    pdfSheet.appendChild(document.createElement("br"));
-  }
-});
+        span.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+
+          // 🔥 reset TOTALE stato lettura
+          synth.cancel();
+
+          audioState.playing = true;
+          readerState.speaking = false;
+
+          readerState.index = readerState.words.indexOf(span);
+          readerState.sentenceStart = readerState.index;
+          readerState.sentenceIndex = 0;
+
+          playPauseIcon.src = "img/pauseIcon.png";
+
+          // ▶️ avvio pulito da QUI
+          requestAnimationFrame(speakSentence);
+        });
+
+
+        pdfSheet.appendChild(span);
+        readerState.words.push(span);
+      });
+
+      // ✅ accapo vero dal PDF
+      if (item.hasEOL) {
+        pdfSheet.appendChild(document.createElement("br"));
+      }
+    });
 
 
     pdfSheet.appendChild(document.createElement("br"));
@@ -611,34 +643,34 @@ function speakSentence() {
     if (/[.!?]$/.test(word)) break;
     i++;
   }
-const rawSentence = readerState.sentenceWords.join(" ");
-const { speakText, tokenMap } =  buildSpeakData(readerState.sentenceWords, currentLang);
+  const rawSentence = readerState.sentenceWords.join(" ");
+  const { speakText, tokenMap } = buildSpeakData(readerState.sentenceWords, currentLang);
 
-currentUtterance = new SpeechSynthesisUtterance(speakText);
-currentUtterance.lang = currentLang;
-currentUtterance.volume = audioState.volume / 100;
-currentUtterance.rate = audioState.rate;
+  currentUtterance = new SpeechSynthesisUtterance(speakText);
+  currentUtterance.lang = currentLang;
+  currentUtterance.volume = audioState.volume / 100;
+  currentUtterance.rate = audioState.rate;
 
 
   readerState.speaking = true;
 
-let lastTokenIdx = -1;
+  let lastTokenIdx = -1;
 
-currentUtterance.onboundary = (e) => {
-  if (e.name !== "word") return;
+  currentUtterance.onboundary = (e) => {
+    if (e.name !== "word") return;
 
-  const spokenWords =
-    speakText.slice(0, e.charIndex).trim().split(/\s+/);
+    const spokenWords =
+      speakText.slice(0, e.charIndex).trim().split(/\s+/);
 
-  const speakWordIndex = spokenWords.length - 1;
-  const tokenIdx = tokenMap[speakWordIndex];
+    const speakWordIndex = spokenWords.length - 1;
+    const tokenIdx = tokenMap[speakWordIndex];
 
-  // 🔒 avanza SOLO quando cambia token PDF
-  if (tokenIdx !== lastTokenIdx) {
-    readerState.sentenceIndex = tokenIdx;
-    lastTokenIdx = tokenIdx;
-  }
-};
+    // 🔒 avanza SOLO quando cambia token PDF
+    if (tokenIdx !== lastTokenIdx) {
+      readerState.sentenceIndex = tokenIdx;
+      lastTokenIdx = tokenIdx;
+    }
+  };
 
 
 
@@ -775,7 +807,7 @@ function enqueueSentence() {
   const tokens = tokenSpans.map(sp => sp.textContent.trim()).filter(Boolean);
 
   // ✅ speakText + mappa parole pronunciate -> token originale
-const { speakText, map, starts } = buildSpeakTextAndMap(tokens, currentLang);
+  const { speakText, map, starts } = buildSpeakTextAndMap(tokens, currentLang);
 
   const u = new SpeechSynthesisUtterance(speakText);
   u.lang = currentLang;
@@ -797,25 +829,25 @@ const { speakText, map, starts } = buildSpeakTextAndMap(tokens, currentLang);
 
   };
 
-u.onboundary = (e) => {
-  if (e.name !== "word") return;
+  u.onboundary = (e) => {
+    if (e.name !== "word") return;
 
-  // calcolo indice (come già fai)
-  boundaryCount++;
+    // calcolo indice (come già fai)
+    boundaryCount++;
 
-  const idxFromChar = wordIndexFromCharIndex(starts, e.charIndex);
-  let spokenWordIdx = Math.max(boundaryCount, idxFromChar, lastSpokenWordIdx + 1);
-  spokenWordIdx = Math.min(spokenWordIdx, map.length - 1);
-  lastSpokenWordIdx = spokenWordIdx;
+    const idxFromChar = wordIndexFromCharIndex(starts, e.charIndex);
+    let spokenWordIdx = Math.max(boundaryCount, idxFromChar, lastSpokenWordIdx + 1);
+    spokenWordIdx = Math.min(spokenWordIdx, map.length - 1);
+    lastSpokenWordIdx = spokenWordIdx;
 
-  const tokenIndex = map[spokenWordIdx] ?? 0;
-  const globalWordIndex = startIdx + tokenIndex;
+    const tokenIndex = map[spokenWordIdx] ?? 0;
+    const globalWordIndex = startIdx + tokenIndex;
 
-  // ✅ SOLO MEMORIZZAZIONE
-  tts.lastWordIndex = globalWordIndex;
-  tts.progressIndex = globalWordIndex;
-  readerState.index = globalWordIndex;
-};
+    // ✅ SOLO MEMORIZZAZIONE
+    tts.lastWordIndex = globalWordIndex;
+    tts.progressIndex = globalWordIndex;
+    readerState.index = globalWordIndex;
+  };
 
 
   u.onend = () => {
@@ -933,8 +965,8 @@ playPauseBtn.addEventListener("click", () => {
   synth.cancel();
   readerState.speaking = false;
 
-readerState.index =
-  readerState.sentenceStart + readerState.sentenceIndex;
+  readerState.index =
+    readerState.sentenceStart + readerState.sentenceIndex;
 
 });
 
@@ -1036,10 +1068,10 @@ volumeIcon.addEventListener("click", () => {
   }
 
   updateVolumeIcon(audioState.volume);
-/*
-  if (audioState.playing) {
-    restartFromLastWord();
-  }*/
+  /*
+    if (audioState.playing) {
+      restartFromLastWord();
+    }*/
 
   if (tts.playing || tts.paused) startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
 
@@ -1778,3 +1810,137 @@ function animateNotesAppear(notes) {
     });
   });
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const submenus = document.querySelectorAll(".has-submenu");
+
+submenus.forEach(menu => {
+  menu.addEventListener("click", function (e) {
+    e.stopPropagation();
+
+    // chiude gli altri submenu
+    submenus.forEach(m => {
+      if (m !== this) m.classList.remove("active");
+    });
+
+    this.classList.toggle("active");
+  });
+});
+
+// chiude tutti cliccando fuori
+document.addEventListener("click", function () {
+  submenus.forEach(menu => menu.classList.remove("active"));
+});
+
+
+const fontSizeSpan = document.getElementById("fontSizeValue");
+const increaseBtn = document.getElementById("increaseFont");
+const decreaseBtn = document.getElementById("decreaseFont");
+
+let currentSize = 16;
+
+function applyFontSize(size) {
+  currentSize = size;
+
+  document.documentElement.style.setProperty(
+    "--base-font-size",
+    size + "px"
+  );
+
+  fontSizeSpan.textContent = size + "px";
+}
+
+/* BOTTONI */
+increaseBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  if (currentSize < 40) {
+    applyFontSize(currentSize + 1);
+  }
+});
+
+decreaseBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  if (currentSize > 10) {
+    applyFontSize(currentSize - 1);
+  }
+});
+
+/* MODIFICA MANUALE */
+fontSizeSpan.addEventListener("blur", function () {
+  let value = this.textContent.replace("px", "").trim();
+  value = parseInt(value);
+
+  if (!isNaN(value)) {
+    if (value < 10) value = 10;
+    if (value > 40) value = 40;
+    applyFontSize(value);
+  } else {
+    // se scrive roba non valida torna al valore corrente
+    applyFontSize(currentSize);
+  }
+});
+
+/* evita invio */
+fontSizeSpan.addEventListener("keydown", function (e) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    this.blur();
+  }
+});
+
+/* inizializza */
+applyFontSize(currentSize);
+
+
+
+
+
+
+
+const fontMenu = document.getElementById("fontMenu");
+const fontOptions = fontMenu.querySelectorAll("[data-font]");
+
+fontOptions.forEach(option => {
+  option.addEventListener("click", function (e) {
+    e.stopPropagation();
+
+    const selectedFont = this.dataset.font;
+    let fontFamily;
+
+    switch (selectedFont) {
+      case "Lexend":
+        fontFamily = '"Lexend", sans-serif';
+        break;
+      case "Atkinson":
+        fontFamily = '"Atkinson Hyperlegible", sans-serif';
+        break;
+      case "IbmMono":
+        fontFamily = '"IBM Plex Mono", monospace';
+        break;
+      case "Roboto":
+        fontFamily = '"Roboto", sans-serif';
+        break;
+      default:
+        fontFamily = 'Inter, sans-serif';
+    }
+
+    document.documentElement.style.setProperty(
+      "--app-font-ui",
+      fontFamily
+    );
+
+    fontMenu.classList.remove("active");
+  });
+});

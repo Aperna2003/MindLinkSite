@@ -18,6 +18,9 @@
     --z-note: 10;
     --z-ui: 1000;
     --toolbar-safe-area: 100px;
+
+    --base-font-size: 16px;
+
 }
 
 body {
@@ -25,6 +28,7 @@ body {
     overflow: hidden;
     background-color: var(--app-c-bg);
     font-family: var(--app-font-ui);
+    font-size: var(--base-font-size);
 }
 
 .sticky-app {
@@ -119,7 +123,7 @@ body {
     border: none;
     resize: none;
     outline: none;
-    font-family: inherit;
+    font-family: system-ui;
     font-size: 1.25rem;
     color: inherit;
     line-height: 1.5;
@@ -200,20 +204,20 @@ body {
 }
 
 .vBar {
-  width: 2px;              
-  height: 30px;           
-  background: #ccc;
-  margin: 0px -5px;      
-  display: inline-block;
-  align-self: center;
+    width: 2px;
+    height: 30px;
+    background: #ccc;
+    margin: 0px -5px;
+    display: inline-block;
+    align-self: center;
 }
 
 #settingsIcon {
-  transition: transform 0.7s ease;
+    transition: transform 0.7s ease;
 }
 
 #settingsBtn:hover #settingsIcon {
-  transform: rotate(180deg);
+    transform: rotate(180deg);
 }
 
 
@@ -242,7 +246,7 @@ body {
     padding: 20px;
     text-align: center;
     color: #555;
-    font-family: system-ui, sans-serif;
+    font-family: system-ui;
     transition: background 0.2s, border-color 0.2s;
 }
 
@@ -345,11 +349,13 @@ body {
     cursor: pointer;
 }
 
-#cmapBtn, #helpBtn {
+#cmapBtn,
+#helpBtn {
     padding: 4px;
 }
 
-#cmapIcon, #helpIcon {
+#cmapIcon,
+#helpIcon {
     opacity: 0.9;
 }
 
@@ -381,7 +387,7 @@ body {
     box-shadow: 0 20px 60px rgba(0, 0, 0, .15);
     border-radius: 6px;
     overflow-y: auto;
-    font-family: "Inter", sans-serif;
+    font-family: var(--app-font-ui);
     line-height: 1.8;
     pointer-events: auto;
     margin-bottom: 20px;
@@ -399,31 +405,32 @@ body {
 
 /* testo normale */
 .pdf-text {
-  font-size: 16px;
-  font-weight: 400;
+    font-size: 1em;
+    font-weight: 400;
 }
 
 /* sottotitoli */
 .pdf-subtitle {
-  font-size: 20px;
-  font-weight: 600;
+    font-size: 1.25em;
+    font-weight: 600;
 }
 
 /* titoli grandi */
 .pdf-title {
-  font-size: 28px;
-  font-weight: 800;
+    font-size: 1.75em;
+    font-weight: 800;
 }
 
 .pdf-word.saved {
-  background: #fde68a;      /* giallo */
-  border-radius: 4px;
+    background: #fde68a;
+    /* giallo */
+    border-radius: 4px;
 }
 
 .pdf-word.reading {
-  background: rgba(255, 0, 0, 0.25);
-  border-radius: 4px;
-  outline: 1px solid rgba(255, 0, 0, 0.6);
+    background: rgba(255, 0, 0, 0.25);
+    border-radius: 4px;
+    outline: 1px solid rgba(255, 0, 0, 0.6);
 }
 
 
@@ -436,6 +443,7 @@ body {
 }
 
 .sticky-note__content {
+    font-size: 1.25em;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -461,7 +469,7 @@ body {
     padding: 10px;
     text-align: center;
     color: #555;
-    font-family: system-ui, sans-serif;
+    font-family: system-ui;
     transition: background 0.2s, border-color 0.2s;
 }
 
@@ -506,94 +514,186 @@ body {
 
 
 .settings-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 5000;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000;
 }
 
 .settings-overlay.hidden {
-  display: none;
+    display: none;
 }
 
 .settings-panel {
-  width: 320px;
-  background: #fff;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
-  font-family: Inter, sans-serif;
-  animation: scaleIn 0.2s ease;
+    width: fit-content;
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    font-family: var(--app-font-ui);
+    animation: scaleIn 0.2s ease;
 }
 
 @keyframes scaleIn {
-  from {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .settings-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 30px;
 }
 
 .settings-close {
-  border: none;
-  background: none;
-  font-size: 18px;
-  cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 18px;
+    cursor: pointer;
 }
 
 .theme-switch {
-  display: flex;
-  gap: 8px;
-  margin: 15px 0;
+    display: flex;
+    gap: 8px;
+    margin: 15px 0;
 }
 
 .theme-btn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  background: #eee;
+    flex: 1;
+    padding: 8px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    background: #eee;
 }
 
 .theme-btn.active {
-  background: #fff;
-  box-shadow: inset 0 0 0 2px #ddd;
+    background: #fff;
+    box-shadow: inset 0 0 0 2px #ddd;
 }
-
-.settings-list {
-  list-style: none;
-  padding: 0;
-  margin: 10px 0 0;
-}
-
-.settings-list li {
-  padding: 10px;
-  cursor: pointer;
-  border-radius: 8px;
-}
-
-.settings-list li:hover {
-  background: #f2f2f2;
-}
-
-
 
 
 @media (max-width: 800px) {
     .borderPosition {
         display: none;
     }
+}
+
+
+
+.settings-list {
+    list-style: none;
+    padding: 0;
+    width: 100%;
+}
+
+.settings-list li {
+    padding: 10px 15px;
+    cursor: pointer;
+    position: relative;
+}
+
+.settings-list .has-submenu:hover {
+    background: #f8f8f8;
+    border-radius: 10px;
+}
+
+/* Contenitore submenu */
+.has-submenu {
+    position: relative;
+}
+
+/* Dropdown laterale */
+.side-dropdown {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 10px);
+    background: white;
+    min-width: 180px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    display: none;
+    overflow: hidden;
+}
+
+.side-dropdown li:first-child {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.side-dropdown li:last-child {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+/* Lista interna */
+.side-dropdown ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.side-dropdown li {
+    padding: 10px 15px;
+}
+
+.side-dropdown li:hover {
+    background: #f8f8f8;
+}
+
+/* Mostra al click (classe active) */
+.has-submenu.active .side-dropdown {
+    display: block;
+}
+
+
+
+
+.font-size-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.font-controls {
+    padding-left: 15px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.font-controls button {
+    border: none;
+    background: #f5f5f5;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.font-controls button:hover {
+    background: #e0e0e0;
+}
+
+#fontSizeValue {
+    min-width: 40px;
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+}
+
+
+.active-lang {
+  font-weight: 600;
+  background: #f2f2f2;
 }

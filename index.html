@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    </script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="CSS/style.css">
     <title>Document</title>
 </head>
@@ -37,47 +39,79 @@
                 <button class="mediaControl" id="stopBtn"><img class="icon" src="img/stopIcon.png"></button>
                 <div class="volumeControl">
                     <img id="volumeIcon" class="icon" src="img/volume/highIcon.png" />
-                    <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100"/>
+                    <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100" />
                 </div>
                 <div class="volumeControl">
                     <img class="icon" src="img/flashIcon.png" />
-                    <input id="speedSlider" type="range" min="0.8" max="2" step="0.1" value="1"/>
+                    <input id="speedSlider" type="range" min="0.8" max="2" step="0.1" value="1" />
                 </div>
                 <div class="lastBtn">
-                    <button class="sticky-btn sticky-btn--secondary" id="btn-add" aria-label="Add new sticky note">Add Note</button>
-                    <button id="cmapBtn" class="sticky-btn sticky-btn--primary"><img id="cmapIcon" class="icon" src="img/cmapIcon.png"></button>
+                    <button class="sticky-btn sticky-btn--secondary" id="btn-add" aria-label="Add new sticky note">Add
+                        Note</button>
+                    <button id="cmapBtn" class="sticky-btn sticky-btn--primary"><img id="cmapIcon" class="icon"
+                            src="img/cmapIcon.png"></button>
                 </div>
             </nav>
 
             <nav id="deleteToolbar" class="toolbar hidden" role="toolbar">
                 <div id="deleteDropzone">
-                    <img class="icon" src="img/deleteIcon.png">   
+                    <img class="icon" src="img/deleteIcon.png">
                 </div>
             </nav>
         </div>
         <div class="borderPosition">
             <nav id="helpToolbar" class="toolbar hidden" role="toolbar">
-                <button id="helpBtn" class="sticky-btn sticky-btn--secondary"><img id="helpIcon" class="icon" src="img/helpIcon.png"></button>
+                <button id="helpBtn" class="sticky-btn sticky-btn--secondary"><img id="helpIcon" class="icon"
+                        src="img/helpIcon.png"></button>
             </nav>
         </div>
     </main>
 
     <!-- SETTINGS OVERLAY -->
-<div id="settingsOverlay" class="settings-overlay hidden">
-  <div class="settings-panel">
-    <div class="settings-header">
-      <h3>Settings</h3>
-      <button id="closeSettings" class="settings-close">✕</button>
-    </div>
+    <div id="settingsOverlay" class="settings-overlay hidden">
+        <div class="settings-panel">
+            <div class="settings-header">
+                <h3>Settings</h3>
+                <button id="closeSettings" class="settings-close">✕</button>
+            </div>
 
-    <ul class="settings-list">
-      <li>Change font</li>
-      <li>Change font size</li>
-      <li>Lenguage</li>
-    </ul>
-    
-  </div>
-</div>
+            <ul class="settings-list">
+                <li class="has-submenu" id="fontMenu">
+                    Change font
+                    <div class="side-dropdown">
+                        <ul>
+                            <li data-font="Inter">Default</li>
+                            <li data-font="Atkinson">Atkinson Hyperlegible</li>
+                            <li data-font="Lexend">Lexend</li>
+                            <li data-font="IbmMono">IBM Plex Mono</li>
+                            <li data-font="Roboto">Roboto</li>
+                        </ul>
+                    </div>
+                </li>
+                <li id="fontSizeControl" class="font-size-item">
+                    <span>Change font size</span>
+
+                    <div class="font-controls">
+                        <button id="decreaseFont">−</button>
+                        <span id="fontSizeValue" contenteditable="true">16px</span>
+                        <button id="increaseFont">+</button>
+                    </div>
+
+                <li class="has-submenu" id="languageMenu">
+    Language
+    <div class="side-dropdown">
+        <ul>
+            <li data-lang="it-IT">Italiano</li>
+            <li data-lang="en-US">English</li>
+            <li data-lang="fr-FR">Français</li>
+            <li data-lang="es-ES">Español</li>
+        </ul>
+    </div>
+</li>
+            </ul>
+
+        </div>
+    </div>
 
     <script src="JS/Scripts.js" defer></script>
 </body>
