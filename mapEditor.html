@@ -16,42 +16,21 @@
 <body>
     <main class="sticky-app">
         <section class="sticky-app__canvas" id="canvas" role="region" aria-label="Infinite canvas"></section>
-        <div id="pdfSheetWrapper">
-            <div id="pdfSheet" aria-label="PDF text sheet"></div>
-        </div>
         <div class="centerToolbar">
-            <nav id="uploadToolbar" class="toolbar" role="toolbar">
-                <div id="dropzone">
-                    <div class="content">
-                        <div class="icon"><img class="icon" src="img/uploadIcon.png"></div>
-                        <div class="text">Drop PDF files, or <span id="browse">browse</span></div>
-                        <input type="file" id="fileInput" hidden />
-                    </div>
+            <nav id="mediaToolbar" class="toolbar" role="toolbar">
+                <button class="mediaControl" id="settingsBtn"><img class="icon" id="settingsIcon" src="img/settingsIcon.png"></button>
+                <span class="vBar"></span>
+                <button class="mediaControl" id="bold"><img class="icon" id="settingsIcon" src="img/mapEditor/boldIcon.png"></button>
+                <button class="mediaControl" id="italic"><img class="icon" id="playPauseIcon" src="img/mapEditor/italicIcon.png"></button>
+                <button class="mediaControl" id="underline"><img class="icon" id="playPauseIcon" src="img/mapEditor/underlineIcon.png"></button>
+                <button class="mediaControl" id="stike"><img class="icon" id="playPauseIcon" src="img/mapEditor/StrikeIcon.png"></button>
+
+                <div class="lastBtn">
+                    <button class="sticky-btn sticky-btn--secondary" id="btn-add" aria-label="Add new sticky note">Add Node</button>
+                    <button id="textBtn" class="sticky-btn sticky-btn--primary"><img id="cmapIcon" class="icon" src="img/mapEditor/txtIcon.png"></button>
                 </div>
             </nav>
 
-            <nav id="mediaToolbar" class="toolbar hidden" role="toolbar">
-                <button class="mediaControl" id="settingsBtn"><img class="icon" id="settingsIcon"
-                        src="img/settingsIcon.png"></button>
-                <span class="vBar"></span>
-                <button class="mediaControl" id="playPauseBtn"><img class="icon" id="playPauseIcon"
-                        src="img/playIcon.png"></button>
-                <button class="mediaControl" id="stopBtn"><img class="icon" src="img/stopIcon.png"></button>
-                <div class="volumeControl">
-                    <img id="volumeIcon" class="icon" src="img/volume/highIcon.png" />
-                    <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100" />
-                </div>
-                <div class="volumeControl">
-                    <img class="icon" src="img/flashIcon.png" />
-                    <input id="speedSlider" type="range" min="0.8" max="2" step="0.1" value="1" />
-                </div>
-                <div class="lastBtn">
-                    <button class="sticky-btn sticky-btn--secondary" id="btn-add" aria-label="Add new sticky note">Add
-                        Note</button>
-                    <button id="cmapBtn" class="sticky-btn sticky-btn--primary"><img id="cmapIcon" class="icon"
-                            src="img/cmapIcon.png"></button>
-                </div>
-            </nav>
 
             <nav id="deleteToolbar" class="toolbar hidden" role="toolbar">
                 <div id="deleteDropzone">
@@ -60,14 +39,13 @@
             </nav>
         </div>
         <div class="borderPosition">
-            <nav id="helpToolbar" class="toolbar hidden" role="toolbar">
-                <button id="helpBtn" class="sticky-btn sticky-btn--secondary"><img id="helpIcon" class="icon"
-                        src="img/helpIcon.png"></button>
+            <nav id="helpToolbar" class="toolbar" role="toolbar">
+                <button id="helpBtn" class="sticky-btn sticky-btn--secondary"><img id="helpIcon" class="icon" src="img/helpIcon.png"></button>
             </nav>
         </div>
     </main>
 
-    <!-- SETTINGS OVERLAY -->
+    <!-- SETTINGS OVERLAY 
     <div id="settingsOverlay" class="settings-overlay hidden">
         <div class="settings-panel">
             <div class="settings-header">
@@ -96,7 +74,7 @@
                         <span id="fontSizeValue" contenteditable="true">16px</span>
                         <button id="increaseFont">+</button>
                     </div>
-                </li>
+
                 <li class="has-submenu" id="languageMenu">
                     Language
                     <div class="side-dropdown">
@@ -108,15 +86,12 @@
                         </ul>
                     </div>
                 </li>
-                <li id="ChangePDF" class="font-size-item">
-                    <span>Change PDF</span>
-                </li>
             </ul>
+
         </div>
-    </div>
-    <script src="JS/Scripts.js" defer></script>    
+    </div>-->
     <script src="JS/StickyEngine.js" defer></script>
-    
+    <script src="JS/Map.js" defer></script>
 </body>
 
 </html>

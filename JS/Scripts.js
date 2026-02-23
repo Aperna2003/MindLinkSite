@@ -1,6 +1,8 @@
 const SENTENCE_END_REGEX = /[.!?]$/;
 
-const DRAG_BORDER_SIZE = 30;
+let pdfAlreadyRendered = false;
+
+/*const DRAG_BORDER_SIZE = 30;*/
 
 /* ===== AUDIO STATE ===== */
 const audioState = {
@@ -126,7 +128,6 @@ function synthIsActive() {
 /* ===== SPEECH SYNTH ===== */
 const synth = window.speechSynthesis;
 let currentUtterance = null;
-let activeStickyNote = null;
 
 function setSpeechLanguage(lang) {
   currentLang = lang;
@@ -399,7 +400,7 @@ function hideDeleteToolbar() {
 }
 
 
-
+/*
 async function handleFile(file) {
   if (!file || file.type !== "application/pdf") {
     alert("Carica un PDF valido");
@@ -413,6 +414,12 @@ async function handleFile(file) {
   //createHelpStickyNote();
 
   const arrayBuffer = await file.arrayBuffer();
+
+  const base64 = btoa(
+    new Uint8Array(arrayBuffer)
+      .reduce((data, byte) => data + String.fromCharCode(byte), "")
+  );
+
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
   pdfSheet.innerHTML = "";
@@ -496,6 +503,110 @@ async function handleFile(file) {
     pdfSheet.appendChild(document.createElement("br"));
   }
 }
+*/
+
+async function handleFile(file) {
+  if (!file || file.type !== "application/pdf") {
+    alert("Carica un PDF valido");
+    return;
+  }
+
+  const MAX_SIZE = 3 * 1024 * 1024; // 3MB
+  const arrayBuffer = await file.arrayBuffer();
+
+  // 🔥 Salva solo se sotto 3MB
+  if (file.size <= MAX_SIZE) {
+
+    const base64 = btoa(
+      new Uint8Array(arrayBuffer)
+        .reduce((data, byte) => data + String.fromCharCode(byte), "")
+    );
+
+    localStorage.setItem("cmapPDF", base64);
+
+  } else {
+    alert("PDF troppo grande per il salvataggio automatico (max 3MB).");
+  }
+
+  // 🔥 Carica PDF
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  renderPDF(pdf);
+
+  uploadToolbar.classList.add("hidden");
+  mediaToolbar.classList.remove("hidden");
+  helpToolbar.classList.remove("hidden");
+}
+
+window.renderPDF = async function (pdf) {
+
+  if (pdfAlreadyRendered) return;
+  pdfAlreadyRendered = true;
+
+  console.log("RENDER PDF CALLED");
+
+  pdfSpanId = 0;
+
+  pdfSheet.innerHTML = "";
+  readerState.words = [];
+  readerState.index = 0;
+  readerState.reading = false;
+
+  // 🔥 Carico highlights UNA SOLA VOLTA
+  const raw = localStorage.getItem("cmapProject");
+  let highlightSet = new Set();
+
+  if (raw) {
+    const project = JSON.parse(raw);
+    if (project.highlights?.length) {
+      highlightSet = new Set(project.highlights.map(String));
+    }
+  }
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+
+    content.items.forEach(item => {
+
+      const fontSize = Math.abs(item.transform[3]);
+
+      let sizeClass = "pdf-text";
+      if (fontSize >= 18) sizeClass = "pdf-title";
+      else if (fontSize >= 14) sizeClass = "pdf-subtitle";
+
+      item.str.split(/\s+/).forEach(word => {
+        if (!word) return;
+
+        const span = document.createElement("span");
+
+        const pid = String(++pdfSpanId);
+        span.dataset.pid = pid;
+
+        span.className = `pdf-word ${sizeClass}`;
+        span.textContent = word + " ";
+
+        // 🔥 QUI applico highlight correttamente
+        if (highlightSet.has(pid)) {
+          span.classList.add("saved");
+          span.dataset.saved = "1";
+        }
+
+        pdfSheet.appendChild(span);
+        readerState.words.push(span);
+      });
+
+      if (item.hasEOL) {
+        pdfSheet.appendChild(document.createElement("br"));
+      }
+
+    });
+
+    pdfSheet.appendChild(document.createElement("br"));
+    pdfSheet.appendChild(document.createElement("br"));
+  }
+};
 
 
 pdfSheet.addEventListener("mouseup", () => {
@@ -539,6 +650,10 @@ function highlightSpan(span) {
   span.dataset.saved = "1";
   span.classList.add("flash");
   setTimeout(() => span.classList.remove("flash"), 300);
+
+  if (window.StickyApp?.saveProject) {
+    StickyApp.saveProject();
+  }
 }
 
 function highlightSpans(spans) {
@@ -1083,6 +1198,7 @@ volumeIcon.addEventListener("click", () => {
 
 updateVolumeIcon(audioState.volume);
 
+/*
 (function () {
   const canvas = document.getElementById("canvas");
   const btnAdd = document.getElementById("btn-add");
@@ -1356,7 +1472,7 @@ updateVolumeIcon(audioState.volume);
   });
 
 })();
-
+*/
 function getRandomStickyColorClass() {
   const colors = [
     "sticky-note--yellow",
@@ -1368,12 +1484,13 @@ function getRandomStickyColorClass() {
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
+
 function createHelpText() {
   const canvas = document.getElementById("canvas");
 
   const note = document.createElement("article");
   note.addEventListener("mousemove", e => {
-    if (state.isDraggingNote) return;
+    if (StickyApp.state.isDraggingNote) return;
 
     const rect = note.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -1443,9 +1560,14 @@ function createHelpText() {
   });
 
   note.appendChild(content);
-  note.addEventListener("mousedown", handleNoteMouseDown);
+  note.addEventListener("mousedown", (e) => {
+    StickyApp.handleNoteMouseDown(e);
+  });
+
   canvas.appendChild(note);
 }
+
+
 
 function createHelpStickyNote() {
   const canvas = document.getElementById("canvas");
@@ -1473,7 +1595,7 @@ function createHelpStickyNote() {
   note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
   note.style.left = "80px";
   note.style.top = "450px";
-  note.style.zIndex = 1000;
+  note.style.zIndex = 999;
 
   const content = document.createElement("div");
   content.className = "sticky-note__content sticky-note__content--readonly";
@@ -1517,11 +1639,14 @@ function createHelpStickyNote() {
   });
 
   note.appendChild(content);
-  note.addEventListener("mousedown", handleNoteMouseDown);
+  /*note.addEventListener("mousedown", handleNoteMouseDown);*/
+  note.addEventListener("mousedown", (e) => {
+    StickyApp.handleNoteMouseDown(e);
+  });
   canvas.appendChild(note);
 }
 
-
+/*
 window.createStickyNote = function () {
   const canvas = document.getElementById("canvas");
 
@@ -1559,6 +1684,47 @@ window.createStickyNote = function () {
   canvas.appendChild(note);
 
   activeStickyNote = note;
+  return note;
+};*/
+
+window.createStickyNote = function () {
+
+  const note = document.createElement("article");
+
+  note.addEventListener("mousemove", e => {
+    if (StickyApp.state.isDraggingNote) return;
+
+    const rect = note.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const isOnBorder =
+      x < DRAG_BORDER_SIZE ||
+      x > rect.width - DRAG_BORDER_SIZE ||
+      y < DRAG_BORDER_SIZE ||
+      y > rect.height - DRAG_BORDER_SIZE;
+
+    note.style.cursor = isOnBorder ? "grab" : "default";
+  });
+
+  note.dataset.type = "list";
+  note.className = `sticky-note ${getRandomStickyColorClass()} sticky-note--readonly`;
+  note.style.left = "120px";
+  note.style.top = "120px";
+  note.style.zIndex = 999;
+
+  const content = document.createElement("div");
+  content.className = "sticky-note__content";
+
+  note.appendChild(content);
+
+  note.addEventListener("mousedown", (e) => {
+    StickyApp.handleNoteMouseDown(e);
+  });
+
+  StickyApp.canvas.appendChild(note);
+
+  StickyApp.activeStickyNote = note;
   return note;
 };
 
@@ -1623,18 +1789,29 @@ function addWordToSticky(word) {
 }*/
 
 function addWordToSticky(word, sourceSpanOrSpans = null) {
-  if (!activeStickyNote) {
-    activeStickyNote = createStickyNote();
+
+  const existingList = document.querySelector('.sticky-note[data-type="list"]');
+
+  if (existingList) {
+    StickyApp.activeStickyNote = existingList;
+  } else {
+    StickyApp.activeStickyNote = StickyApp.createListNote();
   }
 
-  const content = activeStickyNote.querySelector(".sticky-note__content");
+
+
+  const content = StickyApp.activeStickyNote.querySelector(".sticky-note__content");
+
+  const existingWords = Array.from(content.querySelectorAll(".sticky-word"));
+  if (existingWords.some(w => w.textContent.trim() === word.trim())) {
+    return;
+  }
 
   const span = document.createElement("span");
   span.className = "sticky-word";
   span.textContent = word;
   span.draggable = true;
 
-  // ✅ supporta 1 span o array di span (selezione multipla)
   const spansArr = Array.isArray(sourceSpanOrSpans)
     ? sourceSpanOrSpans.filter(Boolean)
     : (sourceSpanOrSpans ? [sourceSpanOrSpans] : []);
@@ -1651,12 +1828,14 @@ function addWordToSticky(word, sourceSpanOrSpans = null) {
     span.dataset.sig = sig;
   }
 
-  span.addEventListener("dragstart", e => {
+  span.draggable = true;
+
+  span.addEventListener("dragstart", (e) => {
+
+    currentDraggedWord = span;
+
     e.dataTransfer.setData("text/plain", span.textContent);
-    e.dataTransfer.setData("source-id", span.dataset.id);
-    e.dataTransfer.setData("source-el", "sticky-word");
-    span.classList.add("dragging");
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("source-type", "sticky-word");
   });
 
   span.addEventListener("dragend", () => {
@@ -1679,10 +1858,8 @@ function addWordToSticky(word, sourceSpanOrSpans = null) {
     const draggedEl = document.querySelector(".sticky-word.dragging");
     if (!draggedEl || draggedEl === span) return;
 
-    // testo unito (come prima)
     span.textContent = `${span.textContent} ${draggedEl.textContent}`;
 
-    // ✅ unisci anche i riferimenti ai pdf spans
     const a = span._pdfSpans || [];
     const b = draggedEl._pdfSpans || [];
     const merged = [...a, ...b].filter(Boolean);
@@ -1701,28 +1878,50 @@ function addWordToSticky(word, sourceSpanOrSpans = null) {
   span.addEventListener("contextmenu", e => {
     e.preventDefault();
 
-    // ✅ togli evidenziazione per TUTTI gli span collegati
     const linked = span._pdfSpans || [];
     linked.forEach(s => {
       s.classList.remove("saved");
       s.dataset.saved = "0";
     });
 
+    const note = span.closest(".sticky-note");
     span.remove();
+
+    // SE NON CI SONO PIÙ PAROLE -> CANCELLA LA STICKY
+    if (note) {
+      const remaining = note.querySelectorAll(".sticky-word");
+      if (remaining.length === 0) {
+        note.remove();
+
+        if (StickyApp.activeStickyNote === note)
+          StickyApp.activeStickyNote = null;
+
+      }
+    }
   });
 
   content.appendChild(span);
+  StickyApp.saveProject();
 }
 
 function addWordToStickyUnique(text, sourceSpanOrSpans = null) {
   if (!text) return;
 
-  if (!activeStickyNote) activeStickyNote = createStickyNote();
-  const content = activeStickyNote.querySelector(".sticky-note__content");
+  // 🔎 Cerca lista esistente nel DOM
+  let list = document.querySelector('.sticky-note[data-type="list"]');
+
+  // Se non esiste → creala
+  if (!list) {
+    list = StickyApp.createListNote();
+  }
+
+  // Aggiorna stato interno
+  StickyApp.activeStickyNote = list;
+
+  const content = list.querySelector(".sticky-note__content");
 
   const normalized = text.replace(/\s+/g, " ").trim();
 
-  // ✅ signature unica basata su pid (non sul testo)
   const spansArr = Array.isArray(sourceSpanOrSpans)
     ? sourceSpanOrSpans.filter(Boolean)
     : (sourceSpanOrSpans ? [sourceSpanOrSpans] : []);
@@ -1731,7 +1930,6 @@ function addWordToStickyUnique(text, sourceSpanOrSpans = null) {
     ? spansArr.map(s => s.dataset.pid).filter(Boolean).join(",")
     : "";
 
-  // se esiste GIÀ la stessa selezione (stessi pid), non inserirla
   if (sig) {
     const exists = Array.from(content.querySelectorAll(".sticky-word"))
       .some(el => (el.dataset.sig || "") === sig);
@@ -1905,10 +2103,6 @@ applyFontSize(currentSize);
 
 
 
-
-
-
-
 const fontMenu = document.getElementById("fontMenu");
 const fontOptions = fontMenu.querySelectorAll("[data-font]");
 
@@ -1944,3 +2138,75 @@ fontOptions.forEach(option => {
     fontMenu.classList.remove("active");
   });
 });
+
+
+
+const cmapBtn = document.getElementById("cmapBtn");
+cmapBtn.addEventListener("click", () => {
+  StickyApp.saveProject();
+  window.location.href = "mapEditor.html";
+});
+
+const savedPDF = localStorage.getItem("cmapPDF");
+
+if (savedPDF) {
+
+  try {
+
+    const binary = atob(savedPDF);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    pdfjsLib.getDocument({ data: bytes }).promise.then(pdf => {
+      renderPDF(pdf);
+    });
+
+    uploadToolbar.classList.add("hidden");
+    mediaToolbar.classList.remove("hidden");
+    helpToolbar.classList.remove("hidden");
+
+  } catch (err) {
+    console.error("Errore nel caricamento PDF salvato:", err);
+    localStorage.removeItem("cmapPDF");
+  }
+}
+
+
+const changePDFBtn = document.getElementById("ChangePDF");
+
+if (changePDFBtn) {
+
+  changePDFBtn.addEventListener("click", () => {
+
+    localStorage.removeItem("cmapProject");
+    localStorage.removeItem("cmapPDF");
+
+    if (window.StickyApp) {
+      StickyApp.activeStickyNote = null;
+    }
+
+    // 🔥 reset PDF DOM
+    const pdfSheet = document.getElementById("pdfSheet");
+    if (pdfSheet) pdfSheet.innerHTML = "";
+
+    // 🔥 reset stato reader
+    if (window.readerState) {
+      readerState.words = [];
+      readerState.index = 0;
+    }
+
+    pdfSpanId = 0;
+
+    console.log("Cache progetto eliminata");
+
+    // 🔥 torna alla schermata upload senza reload
+    uploadToolbar?.classList.remove("hidden");
+    mediaToolbar?.classList.add("hidden");
+    helpToolbar?.classList.add("hidden");
+  });
+
+}
