@@ -380,7 +380,6 @@ document.addEventListener("drop", e => {
   }
 });
 
-
 function showDeleteToolbar() {
   uploadToolbar.classList.add("hidden");
   mediaToolbar.classList.add("hidden");
@@ -398,7 +397,6 @@ function hideDeleteToolbar() {
     uploadToolbar.classList.remove("hidden");
   }
 }
-
 
 /*
 async function handleFile(file) {

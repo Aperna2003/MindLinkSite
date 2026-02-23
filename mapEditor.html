@@ -6,7 +6,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"
+        rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="CSS/style.css">
@@ -18,19 +19,24 @@
         <section class="sticky-app__canvas" id="canvas" role="region" aria-label="Infinite canvas"></section>
         <div class="centerToolbar">
             <nav id="mediaToolbar" class="toolbar" role="toolbar">
-                <button class="mediaControl" id="settingsBtn"><img class="icon" id="settingsIcon" src="img/settingsIcon.png"></button>
+                <button class="mediaControl" id="settingsBtn"><img class="icon" id="settingsIcon"
+                        src="img/settingsIcon.png"></button>
                 <span class="vBar"></span>
-                <button class="mediaControl" id="bold"><img class="icon" id="settingsIcon" src="img/mapEditor/boldIcon.png"></button>
-                <button class="mediaControl" id="italic"><img class="icon" id="playPauseIcon" src="img/mapEditor/italicIcon.png"></button>
-                <button class="mediaControl" id="underline"><img class="icon" id="playPauseIcon" src="img/mapEditor/underlineIcon.png"></button>
-                <button class="mediaControl" id="stike"><img class="icon" id="playPauseIcon" src="img/mapEditor/StrikeIcon.png"></button>
+                <button class="mediaControl" id="bold"><img class="icon" id="settingsIcon"
+                        src="img/mapEditor/boldIcon.png"></button>
+                <button class="mediaControl" id="italic"><img class="icon" id="playPauseIcon"
+                        src="img/mapEditor/italicIcon.png"></button>
+                <button class="mediaControl" id="underline"><img class="icon" id="playPauseIcon"
+                        src="img/mapEditor/underlineIcon.png"></button>
+                <button class="mediaControl" id="stike"><img class="icon" id="playPauseIcon"
+                        src="img/mapEditor/StrikeIcon.png"></button>
 
                 <div class="lastBtn">
-                    <button class="sticky-btn sticky-btn--secondary" id="btn-add" aria-label="Add new sticky note">Add Node</button>
-                    <button id="textBtn" class="sticky-btn sticky-btn--primary"><img id="cmapIcon" class="icon" src="img/mapEditor/txtIcon.png"></button>
+                    <button class="sticky-btn sticky-btn--secondary" id="btnNode" aria-label="Add new sticky note">Add Node</button>
+                    <button id="textBtn" class="sticky-btn sticky-btn--primary"><img id="cmapIcon" class="icon"
+                            src="img/mapEditor/txtIcon.png"></button>
                 </div>
             </nav>
-
 
             <nav id="deleteToolbar" class="toolbar hidden" role="toolbar">
                 <div id="deleteDropzone">
@@ -38,9 +44,23 @@
                 </div>
             </nav>
         </div>
+
+        <nav id="actionToolbars" class="toolbar hidden" role="toolbar">
+
+            <div id="deleteDropzoneNode">
+                <img class="icon" src="img/deleteIcon.png">
+            </div>
+
+            <div id="noteDropzone">
+                <img class="icon" src="img/mapEditor/noteIcon.png">
+            </div>
+
+        </nav>
+
         <div class="borderPosition">
             <nav id="helpToolbar" class="toolbar" role="toolbar">
-                <button id="helpBtn" class="sticky-btn sticky-btn--secondary"><img id="helpIcon" class="icon" src="img/helpIcon.png"></button>
+                <button id="helpBtn" class="sticky-btn sticky-btn--secondary"><img id="helpIcon" class="icon"
+                        src="img/helpIcon.png"></button>
             </nav>
         </div>
     </main>

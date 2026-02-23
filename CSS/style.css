@@ -39,7 +39,7 @@ body {
 }
 
 .sticky-app__canvas {
-    position: absolute;
+    position: relative;
     top: 0;
     left: 0;
     width: 100%;
@@ -150,7 +150,7 @@ body {
 
 .toolbar {
     position: fixed;
-    bottom: 33px;
+    bottom: 50px;
     display: flex;
     gap: 1rem;
     padding: 15px;
@@ -197,10 +197,8 @@ body {
     background-color: #f9fafb;
 }
 
-#mediaToolbar,
-#deleteToolbar,
-#helpToolbar {
-    bottom: 50px;
+#uploadToolbar {
+    bottom: 33px;
 }
 
 .vBar {
@@ -465,7 +463,7 @@ body {
     display: none;
 }
 
-#deleteDropzone {
+#deleteDropzone, #deleteDropzoneNode, #noteDropzone {
     border: 2px dashed #ccc;
     border-radius: 50px;
     padding: 10px;
@@ -475,9 +473,15 @@ body {
     transition: background 0.2s, border-color 0.2s;
 }
 
-#deleteDropzone.active {
+#deleteDropzone.active, #deleteDropzoneNode.active {
     background: #f5f7fa;
     border-color: #C10000;
+}
+
+
+#noteDropzone.active {
+    background: #f5f7fa;
+    border-color: #4646FA;
 }
 
 #deleteToolbar {
@@ -702,15 +706,35 @@ body {
 
 
 .map-node {
+    position: absolute;
+    display: inline-block;
+
+    width: fit-content;      /* 🔥 chiave */
+    min-width: 80px;
+    max-width: 600px;
+
     padding: 8px 16px;
     background: #e6f0ff;
     border: 2px solid #4a90e2;
     border-radius: 14px;
-    font-weight: 500;
-    cursor: grab;
-    user-select: text;
-    outline: none;
+
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+
+    text-align: center;      /* opzionale ma consigliato */
 }
+.resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: ew-resize;
+    z-index: 10;
+}
+
+.resize-handle.left { left: 0; }
+.resize-handle.right { right: 0; }
 
 .map-node:focus {
     cursor: text;
@@ -724,4 +748,104 @@ body {
 .map-node:active {
     cursor: grabbing;
     transform: scale(1.03);
+}
+
+
+#actionToolbars {
+    position: fixed;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 50px;
+    padding: 8px;
+    z-index: 800;
+}
+
+.map-node.selected {
+    box-shadow: 0 0 0 3px rgba(74,144,226,0.3);
+}
+
+.node-anchor {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #4a90e2;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.node-anchor:hover {
+    background: #2f6ecb;
+}
+
+.node-anchor.top {
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.node-anchor.bottom {
+    bottom: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.node-anchor.left {
+    left: -15px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.node-anchor.right {
+    right: -15px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#connectionLayer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.link-btn {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 22px;
+    background: #4a90e2;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;   
+}
+
+.relation-node {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    min-width: 40px;
+    padding: 4px 8px;
+    font-style: italic;
+}
+
+.relation-node:focus {
+    box-shadow: none;
 }
