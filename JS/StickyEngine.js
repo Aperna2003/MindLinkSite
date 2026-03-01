@@ -12,11 +12,22 @@ window.StickyApp = {
     draggedWord: null,
     draggedMapNode: null,
     selectedNode: null,
+    savedSelection: null,
     linking: false,
     connections: [],
     linkStartNode: null,
     linkStartSide: null,
     tempLine: null,
+    lastMousePosition: { x: 0, y: 0 },
+    _activeDragNode: null,
+    _activeResizeNode: null,
+    _dragOffsetX: 0,
+    _dragOffsetY: 0,
+    _resizeData: null,
+    _dragSystemInitialized: false,
+    isSelecting: false,
+    selectionStart: { x: 0, y: 0 },
+    selectionBox: null,
 
 
     state: {
@@ -40,11 +51,113 @@ window.StickyApp = {
     ],
 
     deselectNode() {
+
+        const multi = this.getMultiSelectedNodes();
+
+        // 🔥 Se c'è multi selezione NON fare nulla
+        if (multi.length > 1) return;
+
         if (!this.selectedNode) return;
 
         this.selectedNode.classList.remove("selected");
         this.selectedNode.querySelectorAll(".link-btn").forEach(b => b.remove());
         this.selectedNode = null;
+
+        const insertImageBtn = document.getElementById("insertImage");
+        const imageDivider = document.getElementById("imageDivider");
+
+        insertImageBtn?.classList.remove("hidden-image-tool");
+        imageDivider?.classList.remove("hidden-image-tool");
+    },
+
+    insertImageIntoNode() {
+
+        const multi = this.getMultiSelectedNodes();
+        if (multi.length > 1) return;
+
+        if (!this.selectedNode) return;
+
+        // 🚫 NON permettere su relation node
+        if (this.selectedNode.classList.contains("relation-node")) {
+            return;
+        }
+
+        const content = this.selectedNode.querySelector(".map-node__content");
+        if (!content) return;
+
+        // Crea input file invisibile
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+
+        input.onchange = (e) => {
+
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+
+            reader.onload = (event) => {
+
+                const img = document.createElement("img");
+                img.src = event.target.result;
+
+                img.draggable = false;
+                img.style.width = "100%";
+                img.style.height = "auto";
+                img.style.display = "block";
+                img.style.marginBottom = "8px";
+                img.style.borderRadius = "6px";
+                img.style.userSelect = "none";
+                img.style.pointerEvents = "none";
+
+                // 🔥 Salva il testo esistente
+                const existingHTML = content.innerHTML;
+
+                // 🔥 Svuota il contenuto
+                content.innerHTML = "";
+
+                // 🔥 Inserisci prima immagine
+                content.appendChild(img);
+
+                // 🔥 Poi reinserisci testo sotto
+                const textWrapper = document.createElement("div");
+                textWrapper.innerHTML = existingHTML;
+
+                content.appendChild(textWrapper);
+
+                // 🔥 Imposta larghezza iniziale nodo
+                this.selectedNode.style.width = "300px";
+
+                this.saveProject();
+            };
+
+            reader.readAsDataURL(file);
+        };
+
+        input.click();
+    },
+
+    selectNodesInBox(x, y, width, height) {
+
+        const nodes = this.canvas.querySelectorAll(".map-node");
+
+        nodes.forEach(node => {
+
+            const rect = node.getBoundingClientRect();
+            const canvasRect = this.canvas.getBoundingClientRect();
+
+            const nodeX = rect.left - canvasRect.left;
+            const nodeY = rect.top - canvasRect.top;
+
+            const intersects =
+                nodeX < x + width &&
+                nodeX + rect.width > x &&
+                nodeY < y + height &&
+                nodeY + rect.height > y;
+
+            node.classList.toggle("multi-selected", intersects);
+        });
     },
 
     init() {
@@ -55,12 +168,98 @@ window.StickyApp = {
 
         this.btnNode = document.getElementById("btnNode");
 
+        const boldBtn = document.getElementById("bold");
+        const italicBtn = document.getElementById("italic");
+        const underlineBtn = document.getElementById("underline");
+        const strikeBtn = document.getElementById("stike");
+
+        this.canvas.addEventListener("dragstart", (e) => {
+
+            // 🔵 Permetti drag delle sticky-word
+            if (e.target.classList.contains("sticky-word")) return;
+
+            // 🔵 Permetti drag delle textarea sticky
+            if (e.target.closest("textarea")) return;
+
+            // 🔴 Blocca drag dei map-node (evita ghost image)
+            if (e.target.closest(".map-node")) {
+                e.preventDefault();
+            }
+        });
+
+        boldBtn?.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.applyTextStyle("bold");
+        });
+
+        italicBtn?.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.applyTextStyle("italic");
+        });
+
+        underlineBtn?.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.applyTextStyle("underline");
+        });
+
+        strikeBtn?.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.applyTextStyle("strikeThrough");
+        });
+
+        this.canvas.addEventListener("contextmenu", (e) => {
+            e.preventDefault(); // blocca menu destro
+        });
+
+        const insertImageBtn = document.getElementById("insertImage");
+
+        insertImageBtn?.addEventListener("click", () => {
+            this.insertImageIntoNode();
+        });
+
+        document.addEventListener("selectionchange", () => {
+
+            if (!this.selectedNode) return;
+
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+
+            const range = selection.getRangeAt(0);
+
+            if (this.selectedNode.contains(range.commonAncestorContainer)) {
+                this.savedSelection = range.cloneRange();
+            }
+        });
+
+        document.addEventListener("selectionchange", () => {
+            this.updateToolbarState();
+        });
+
         document.addEventListener("mousedown", (e) => {
-            if (!e.target.closest(".map-node")) {
+
+            // 🔵 Se clicco nodo → NON deselezionare
+            if (e.target.closest(".map-node")) return;
+
+            // 🔵 Se clicco toolbar → NON deselezionare
+            if (e.target.closest(".sticky-app__toolbar")) return;
+
+            // 🔵 Se clicco controlli media → NON deselezionare
+            if (e.target.closest(".mediaControl")) return;
+
+            // 🔥 Solo se clicco sulla canvas vuota
+            if (e.target === this.canvas) {
+                this.clearNodeSelection();
                 this.deselectNode();
             }
         });
+
         window.addEventListener("mousemove", (e) => {
+
+            this.lastMousePosition = { x: e.clientX, y: e.clientY };
 
             if (!this.linking || !this.tempLine) return;
 
@@ -105,8 +304,11 @@ window.StickyApp = {
                 const lastNode = nodes[nodes.length - 1];
 
                 if (lastNode) {
-                    lastNode.setAttribute("contenteditable", "true");
-                    lastNode.focus();
+                    const content = lastNode.querySelector(".map-node__content");
+                    if (content) {
+                        content.setAttribute("contenteditable", "true");
+                        content.focus();
+                    }
                 }
             });
         }
@@ -205,8 +407,8 @@ window.StickyApp = {
     screenToWorld(sx, sy) {
         const rect = this.canvas.getBoundingClientRect();
         return {
-            x: (sx - rect.left - this.state.viewportX) / this.state.scale,
-            y: (sy - rect.top - this.state.viewportY) / this.state.scale
+            x: (sx - rect.left),
+            y: (sy - rect.top)
         };
     },
 
@@ -456,6 +658,8 @@ window.StickyApp = {
         const node = document.createElement("div");
         node.className = "map-node";
 
+        node.dataset.id = "node_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+
         const resizeLeft = document.createElement("div");
         resizeLeft.className = "resize-handle left";
 
@@ -464,32 +668,46 @@ window.StickyApp = {
 
 
 
-        node.textContent = text || "\u200B";
+        const content = document.createElement("div");
+        content.className = "map-node__content";
+        content.innerHTML = text || "\u200B";
+        content.setAttribute("contenteditable", "false");
+
+        node.appendChild(content);
 
         node.appendChild(resizeLeft);
         node.appendChild(resizeRight);
-        node.setAttribute("contenteditable", "false");
+        /*node.setAttribute("contenteditable", "false");*/
 
         if (!text) {
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    node.setAttribute("contenteditable", "true");
-                    node.focus();
+                const content = node.querySelector(".map-node__content");
+                content.setAttribute("contenteditable", "true");
+                content.focus();
+
+                // 🔥 ESC per uscire
+                content.addEventListener("keydown", (e) => {
+                    if (e.key === "Escape") {
+                        content.blur();
+                    }
                 });
             });
         }
+
         node.addEventListener("dblclick", (e) => {
             e.stopPropagation();
 
-            node.setAttribute("contenteditable", "true");
-            node.focus();
+            const content = node.querySelector(".map-node__content");
+            content.setAttribute("contenteditable", "true");
+            content.focus();
 
         });
 
-        node.addEventListener("blur", () => {
-            node.setAttribute("contenteditable", "false");
-            StickyApp.saveProject();
+        const content1 = node.querySelector(".map-node__content");
 
+        content1.addEventListener("blur", () => {
+            content1.setAttribute("contenteditable", "false");
+            this.saveProject();
         });
 
         node.addEventListener("input", () => {
@@ -513,27 +731,60 @@ window.StickyApp = {
         return node;
     },
 
+    clearNodeSelection() {
+        this.canvas.querySelectorAll(".map-node")
+            .forEach(n => n.classList.remove("multi-selected"));
+    },
+
+    getMultiSelectedNodes() {
+        return Array.from(
+            this.canvas.querySelectorAll(".map-node.multi-selected")
+        );
+    },
+
+    startSelectionBox(e) {
+
+        this.clearNodeSelection();
+
+        this.state.isSelecting = true;
+        this.state.selectionStart = { x: e.clientX, y: e.clientY };
+
+        const box = document.createElement("div");
+        box.className = "selection-box";
+
+        box.style.position = "absolute";
+        box.style.border = "1px dashed #4a90e2";
+        box.style.background = "rgba(74,144,226,0.1)";
+        box.style.pointerEvents = "none";
+        box.style.zIndex = "9999";
+
+        this.canvas.appendChild(box);
+        this.state.selectionBox = box;
+
+        // Se c'è selezione multipla → disattiva selezione singola
+        const multi = this.getMultiSelectedNodes();
+        if (multi.length > 0) {
+            this.deselectNode();
+        }
+
+    },
+
     makeNodeDraggable(node) {
-
-        let offsetX = 0;
-        let offsetY = 0;
-        let dragging = false;
-
 
         const leftHandle = node.querySelector(".resize-handle.left");
         const rightHandle = node.querySelector(".resize-handle.right");
 
-        let resizing = false;
-        let direction = null;
-        let startX = 0;
-        let startWidth = 0;
-        let startLeft = 0;
+        /* =========================
+           SELEZIONE NODO
+        ========================= */
 
         node.addEventListener("mousedown", (e) => {
 
             if (e.target.closest(".resize-handle")) return;
             if (e.target.closest(".link-btn")) return;
-            if (node.getAttribute("contenteditable") === "true") return;
+
+            const content = node.querySelector(".map-node__content");
+            if (content && content.getAttribute("contenteditable") === "true") return;
 
             if (StickyApp.linking && StickyApp.linkStartNode !== node) {
                 StickyApp.finalizeLink(node);
@@ -541,232 +792,469 @@ window.StickyApp = {
             }
 
             StickyApp.selectNode(node);
-            e.stopPropagation(); // 🔥 fondamentale
+            e.stopPropagation();
         });
 
+        /* =========================
+           START RESIZE
+        ========================= */
+
         const startResize = (e, dir) => {
+
             e.stopPropagation();
             e.preventDefault();
-            dragging = false;   // 🔥 blocca il drag
-            resizing = true;
-            direction = dir;
-            startX = e.clientX;
-            startWidth = node.offsetWidth;
-            startLeft = parseFloat(node.style.left);
+
+            StickyApp._activeResizeNode = node;
+
+            StickyApp._resizeData = {
+                direction: dir,
+                startX: e.clientX,
+                startWidth: node.offsetWidth,
+                startLeft: parseFloat(node.style.left)
+            };
         };
 
         leftHandle?.addEventListener("mousedown", (e) => startResize(e, "left"));
         rightHandle?.addEventListener("mousedown", (e) => startResize(e, "right"));
 
-        window.addEventListener("mousemove", (e) => {
-
-            if (!resizing) return;
-
-            const dx = e.clientX - startX;
-
-            if (direction === "right") {
-                const newWidth = startWidth + dx;
-                if (newWidth > 80) {
-                    node.style.width = newWidth + "px";
-                }
-            }
-
-            if (direction === "left") {
-                const newWidth = startWidth - dx;
-                if (newWidth > 80) {
-                    node.style.width = newWidth + "px";
-                    node.style.left = (startLeft + dx) + "px";
-                }
-            }
-        });
-
-        window.addEventListener("mouseup", () => {
-            resizing = false;
-            direction = null;
-        });
+        /* =========================
+           START DRAG
+        ========================= */
 
         node.addEventListener("mousedown", (e) => {
 
-            // 🔥 Se sto ridimensionando NON deve partire il drag
             if (
                 e.target.closest(".resize-handle") ||
                 e.target.closest(".link-btn")
             ) return;
 
-            if (node.getAttribute("contenteditable") === "true") return;
+            const content = node.querySelector(".map-node__content");
+            if (content && content.getAttribute("contenteditable") === "true") return;
 
-            dragging = true;
+            StickyApp._activeDragNode = node;
+
+            const world = StickyApp.screenToWorld(e.clientX, e.clientY);
+
+            StickyApp._dragOffsetX =
+                world.x - parseFloat(node.style.left);
+
+            StickyApp._dragOffsetY =
+                world.y - parseFloat(node.style.top);
+
+            node.style.zIndex = ++StickyApp.state.zIndexCounter;
 
             if (typeof showDeleteToolbar === "function") {
                 showDeleteToolbar(true);
             }
-
-            const rect = node.getBoundingClientRect();
-            offsetX = e.clientX - rect.left;
-            offsetY = e.clientY - rect.top;
-
-            node.style.zIndex = ++StickyApp.state.zIndexCounter;
         });
 
-        window.addEventListener("mousemove", (e) => {
+        /* =========================
+           GLOBAL LISTENERS (UNA SOLA VOLTA)
+        ========================= */
 
-            if (!dragging || resizing) return;
+        if (!StickyApp._dragSystemInitialized) {
 
-            const deleteDropzoneNode = document.getElementById("deleteDropzoneNode");
+            StickyApp._dragSystemInitialized = true;
 
-            if (deleteDropzoneNode) {
+            window.addEventListener("mousemove", (e) => {
 
-                const rect = deleteDropzoneNode.getBoundingClientRect();
+                /* ===== RESIZE ===== */
 
-                const isOver =
-                    e.clientX >= rect.left &&
-                    e.clientX <= rect.right &&
-                    e.clientY >= rect.top &&
-                    e.clientY <= rect.bottom;
+                if (StickyApp._activeResizeNode && StickyApp._resizeData) {
 
-                const icon = deleteDropzoneNode.querySelector("img");
+                    const node = StickyApp._activeResizeNode;
+                    const data = StickyApp._resizeData;
 
-                if (isOver) {
-                    deleteDropzoneNode.classList.add("active");
-                    StickyApp.setDeleteIcon("deleteDropzoneNode", true);
-                } else {
-                    deleteDropzoneNode.classList.remove("active");
-                    StickyApp.setDeleteIcon("deleteDropzoneNode", false);
-                }
-            }
+                    const dx = e.clientX - data.startX;
 
-            // 🔵 NOTE DROPZONE ACTIVE
-            const noteDropzone = document.getElementById("noteDropzone");
+                    const multi = StickyApp.getMultiSelectedNodes();
 
-            if (noteDropzone) {
+                    const targets =
+                        multi.length > 1 && multi.includes(node)
+                            ? multi
+                            : [node];
 
-                const rect = noteDropzone.getBoundingClientRect();
+                    targets.forEach(n => {
 
-                const isOverNote =
-                    e.clientX >= rect.left &&
-                    e.clientX <= rect.right &&
-                    e.clientY >= rect.top &&
-                    e.clientY <= rect.bottom;
+                        const hasImage = n.querySelector("img") !== null;
 
-                const icon = noteDropzone.querySelector("img");
+                        const minWidth = hasImage ? 120 : 50;
+                        const maxWidth = 1200;
 
-                if (isOverNote) {
-                    noteDropzone.classList.add("active");
-                    if (icon) icon.src = "img/mapEditor/noteIconB.png";
-                } else {
-                    noteDropzone.classList.remove("active");
-                    if (icon) icon.src = "img/mapEditor/noteIcon.png";
-                }
-            }
+                        if (data.direction === "right") {
 
-            const world = StickyApp.screenToWorld(e.clientX, e.clientY);
+                            let newWidth = data.startWidth + dx;
 
-            node.style.left = (world.x - offsetX) + "px";
-            node.style.top = (world.y - offsetY) + "px";
+                            newWidth = Math.max(minWidth, newWidth);
+                            newWidth = Math.min(maxWidth, newWidth);
 
-            if (StickyApp.connections.length) {
-                StickyApp.updateConnections();
-            }
-            // 🔥 Controllo se è sopra una sticky
-            const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
-            const sticky = elementBelow?.closest(".sticky-note");
+                            n.style.width = newWidth + "px";
+                        }
 
-            if (sticky) {
-                sticky.classList.add("drop-active");
-            }
+                        if (data.direction === "left") {
 
-        });
+                            let newWidth = data.startWidth - dx;
 
-        window.addEventListener("mouseup", (e) => {
+                            newWidth = Math.max(minWidth, newWidth);
+                            newWidth = Math.min(maxWidth, newWidth);
 
-            if (!dragging || resizing) return;
+                            const widthDiff = data.startWidth - newWidth;
 
-            dragging = false;
+                            n.style.width = newWidth + "px";
+                            n.style.left = (data.startLeft + widthDiff) + "px";
+                        }
+                    });
 
-            const deleteDropzoneNode = document.getElementById("deleteDropzoneNode");
-            deleteDropzoneNode?.classList.remove("active");
-            StickyApp.setDeleteIcon("deleteDropzoneNode", false);
-
-            const noteDropzone = document.getElementById("noteDropzone");
-
-
-            noteDropzone?.classList.remove("active");
-
-            const noteIcon = noteDropzone?.querySelector("img");
-            if (noteIcon) noteIcon.src = "img/mapEditor/noteIcon.png";
-
-            const rect = deleteDropzoneNode?.getBoundingClientRect();
-            const isOverDelete = rect &&
-                e.clientX >= rect.left &&
-                e.clientX <= rect.right &&
-                e.clientY >= rect.top &&
-                e.clientY <= rect.bottom;
-
-            if (isOverDelete) {
-                node.remove();
-                StickyApp.saveProject();
-                hideDeleteToolbar();
-                return;
-            }
-
-
-
-            const noteRect = noteDropzone?.getBoundingClientRect();
-            const isOverNote = noteRect &&
-                e.clientX >= noteRect.left &&
-                e.clientX <= noteRect.right &&
-                e.clientY >= noteRect.top &&
-                e.clientY <= noteRect.bottom;
-
-            if (isOverNote) {
-
-                const text = this.getNodePureText(node);
-                if (!text) {
-                    hideDeleteToolbar();
+                    StickyApp.updateConnections();
                     return;
                 }
+                /* ===== DRAG ===== */
 
-                // 🔍 Cerco una sticky lista esistente
-                let targetSticky = document.querySelector('.sticky-note[data-type="list"]');
+                if (!StickyApp._activeDragNode) return;
 
-                // ➕ Se non esiste, la creo al centro
-                if (!targetSticky) {
+                const node = StickyApp._activeDragNode;
 
-                    const center = StickyApp.screenToWorld(
-                        window.innerWidth / 2,
-                        window.innerHeight / 2
-                    );
+                const multi = StickyApp.getMultiSelectedNodes();
 
-                    targetSticky = StickyApp.createListNote(
-                        center.x - 120,
-                        center.y - 120
-                    );
+                if (multi.length > 1 && multi.includes(node)) {
+
+                    const world = StickyApp.screenToWorld(e.clientX, e.clientY);
+
+                    const dx = world.x - StickyApp._dragOffsetX - parseFloat(node.style.left);
+                    const dy = world.y - StickyApp._dragOffsetY - parseFloat(node.style.top);
+
+                    multi.forEach(n => {
+                        const left = parseFloat(n.style.left);
+                        const top = parseFloat(n.style.top);
+                        n.style.left = (left + dx) + "px";
+                        n.style.top = (top + dy) + "px";
+                    });
+
+                } else {
+
+                    const world = StickyApp.screenToWorld(e.clientX, e.clientY);
+
+                    node.style.left =
+                        (world.x - StickyApp._dragOffsetX) + "px";
+
+                    node.style.top =
+                        (world.y - StickyApp._dragOffsetY) + "px";
                 }
 
-                // ➕ Aggiungo il nodo alla sticky
-                StickyApp.addNodeToSticky(targetSticky, node);
+                /* Delete dropzone */
+                const deleteDropzoneNode =
+                    document.getElementById("deleteDropzoneNode");
 
+                if (deleteDropzoneNode) {
+
+                    const rect =
+                        deleteDropzoneNode.getBoundingClientRect();
+
+                    const isOver =
+                        e.clientX >= rect.left &&
+                        e.clientX <= rect.right &&
+                        e.clientY >= rect.top &&
+                        e.clientY <= rect.bottom;
+
+                    deleteDropzoneNode.classList.toggle("active", isOver);
+                    StickyApp.setDeleteIcon("deleteDropzoneNode", isOver);
+                }
+
+                /* Note dropzone */
+                /* ===== NOTE DROPZONE VISIBILITY ===== */
+
+                const noteDropzone =
+                    document.getElementById("noteDropzone");
+
+                if (noteDropzone) {
+
+                    const isRelation = node.classList.contains("relation-node");
+                    const rawText = StickyApp.getNodePureText(node)
+                        .replace(/\u200B/g, "")   // rimuove zero-width space
+                        .trim();
+
+                    const isEmpty = rawText.length === 0;
+
+                    // 🔴 Se relation o vuoto → NASCONDI completamente note dropzone
+                    if (isRelation || isEmpty) {
+
+                        noteDropzone.style.display = "none";
+
+                    } else {
+
+                        noteDropzone.style.display = "flex"; // o "" se preferisci
+
+                        const rect = noteDropzone.getBoundingClientRect();
+
+                        const isOver =
+                            e.clientX >= rect.left &&
+                            e.clientX <= rect.right &&
+                            e.clientY >= rect.top &&
+                            e.clientY <= rect.bottom;
+
+                        noteDropzone.classList.toggle("active", isOver);
+
+                        const icon = noteDropzone.querySelector("img");
+                        if (icon) {
+                            icon.src = isOver
+                                ? "img/mapEditor/noteIconB.png"
+                                : "img/mapEditor/noteIcon.png";
+                        }
+                    }
+                }
+
+                StickyApp.updateConnections();
+            });
+
+            window.addEventListener("mouseup", (e) => {
+
+                /* ===== RESIZE STOP ===== */
+                StickyApp._activeResizeNode = null;
+                StickyApp._resizeData = null;
+
+                const node = StickyApp._activeDragNode;
+                if (!node) return;
+
+                const deleteDropzoneNode =
+                    document.getElementById("deleteDropzoneNode");
+
+                const noteDropzone =
+                    document.getElementById("noteDropzone");
+
+                const deleteRect =
+                    deleteDropzoneNode?.getBoundingClientRect();
+
+                const noteRect =
+                    noteDropzone?.getBoundingClientRect();
+
+                const isOverDelete =
+                    deleteRect &&
+                    e.clientX >= deleteRect.left &&
+                    e.clientX <= deleteRect.right &&
+                    e.clientY >= deleteRect.top &&
+                    e.clientY <= deleteRect.bottom;
+
+                const isOverNote =
+                    noteRect &&
+                    e.clientX >= noteRect.left &&
+                    e.clientX <= noteRect.right &&
+                    e.clientY >= noteRect.top &&
+                    e.clientY <= noteRect.bottom;
+
+                /* =========================
+                   DELETE DROPZONE
+                ========================= */
+
+                if (isOverDelete) {
+
+                    const multi = StickyApp.getMultiSelectedNodes();
+
+                    // 🔥 CASO MULTI-SELEZIONE
+                    if (multi.length > 1 && multi.includes(node)) {
+
+                        multi.forEach(n => {
+                            StickyApp.removeConnectionsOfNode(n);
+                            n.remove();
+                        });
+
+                        StickyApp.clearNodeSelection();
+                    }
+                    // 🔵 CASO NORMALE
+                    else {
+
+                        StickyApp.removeConnectionsOfNode(node);
+                        node.remove();
+                    }
+
+                    deleteDropzoneNode?.classList.remove("active");
+                    StickyApp.setDeleteIcon("deleteDropzoneNode", false);
+
+                    StickyApp._activeDragNode = null;
+                    StickyApp.saveProject();
+
+                    if (typeof hideDeleteToolbar === "function") {
+                        hideDeleteToolbar();
+                    }
+
+                    return;
+                }
+                /* =========================
+                   NOTE DROPZONE
+                ========================= */
+
+                if (isOverNote) {
+
+                    // 🚫 NON permettere relation node
+                    if (node.classList.contains("relation-node")) {
+                        StickyApp._activeDragNode = null;
+                        return;
+                    }
+
+                    const text = StickyApp.getNodePureText(node);
+
+                    // 🚫 NON permettere nodi vuoti
+                    if (!text) {
+                        StickyApp._activeDragNode = null;
+                        return;
+                    }
+
+                    // 🔥 Rimuovi prima le connessioni
+                    StickyApp.removeConnectionsOfNode(node);
+
+                    let targetSticky =
+                        document.querySelector('.sticky-note[data-type="list"]');
+
+                    if (!targetSticky) {
+
+                        const center = StickyApp.screenToWorld(
+                            window.innerWidth / 2,
+                            window.innerHeight / 2
+                        );
+
+                        targetSticky = StickyApp.createListNote(
+                            center.x - 120,
+                            center.y - 120
+                        );
+                    }
+
+                    StickyApp.addNodeToSticky(targetSticky, node);
+
+                    noteDropzone?.classList.remove("active");
+
+                    StickyApp._activeDragNode = null;
+                    StickyApp.saveProject();
+
+                    if (typeof hideDeleteToolbar === "function") {
+                        hideDeleteToolbar();
+                    }
+
+                    return; // 🔥 STOP QUI
+                }
+
+                /* =========================
+                   NORMAL DRAG END
+                ========================= */
+
+                deleteDropzoneNode?.classList.remove("active");
+                StickyApp.setDeleteIcon("deleteDropzoneNode", false);
+
+                noteDropzone?.classList.remove("active");
+
+                const icon = noteDropzone?.querySelector("img");
+                if (icon) {
+                    icon.src = "img/mapEditor/noteIcon.png";
+                }
+
+                StickyApp._activeDragNode = null;
                 StickyApp.saveProject();
-                hideDeleteToolbar();
 
-                return;
-            }
+                if (typeof hideDeleteToolbar === "function") {
+                    hideDeleteToolbar();
+                }
+            });
 
-            // 🔹 Controllo sticky
-            node.style.pointerEvents = "none";
-            const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
-            const sticky = elementBelow?.closest(".sticky-note");
-            node.style.pointerEvents = "auto";
+            /*
 
-            if (sticky) {
-                StickyApp.addNodeToSticky(sticky, node);
-                hideDeleteToolbar();
-                return;
-            }
+            window.addEventListener("mouseup", (e) => {
 
-            StickyApp.saveProject();
-            hideDeleteToolbar();
-        });
+
+                StickyApp._activeResizeNode = null;
+                StickyApp._resizeData = null;
+
+           
+
+                const node = StickyApp._activeDragNode;
+
+                if (node) {
+
+                    const deleteDropzoneNode =
+                        document.getElementById("deleteDropzoneNode");
+
+                    const rect =
+                        deleteDropzoneNode?.getBoundingClientRect();
+
+                    const isOverDelete =
+                        rect &&
+                        e.clientX >= rect.left &&
+                        e.clientX <= rect.right &&
+                        e.clientY >= rect.top &&
+                        e.clientY <= rect.bottom;
+
+                    if (isOverDelete) {
+
+                        StickyApp.removeConnectionsOfNode(node);
+                        node.remove();
+                    }
+
+                    deleteDropzoneNode?.classList.remove("active");
+                    StickyApp.setDeleteIcon("deleteDropzoneNode", false);
+
+                    const noteDropzone = document.getElementById("noteDropzone");
+
+                    noteDropzone?.classList.remove("active");
+
+                    const icon = noteDropzone?.querySelector("img");
+                    if (icon) {
+                        icon.src = "img/mapEditor/noteIcon.png";
+                    }
+
+
+                    const noteRect =
+                        noteDropzone?.getBoundingClientRect();
+
+                    const isOverNote =
+                        noteRect &&
+                        e.clientX >= noteRect.left &&
+                        e.clientX <= noteRect.right &&
+                        e.clientY >= noteRect.top &&
+                        e.clientY <= noteRect.bottom;
+
+                    if (isOverNote) {
+
+                        const text = StickyApp.getNodePureText(node);
+                        if (text) {
+
+                            let targetSticky =
+                                document.querySelector('.sticky-note[data-type="list"]');
+
+                            if (!targetSticky) {
+
+                                const center = StickyApp.screenToWorld(
+                                    window.innerWidth / 2,
+                                    window.innerHeight / 2
+                                );
+
+                                targetSticky = StickyApp.createListNote(
+                                    center.x - 120,
+                                    center.y - 120
+                                );
+                            }
+
+                            StickyApp.addNodeToSticky(targetSticky, node);
+                        }
+
+                        noteDropzone?.classList.remove("active");
+
+                        StickyApp._activeDragNode = null;
+
+                        if (typeof hideDeleteToolbar === "function") {
+                            hideDeleteToolbar();
+                        }
+
+                        return; // 🔥 importantissimo
+                    }
+
+                    StickyApp.saveProject();
+                }
+
+                StickyApp._activeDragNode = null;
+
+                if (typeof hideDeleteToolbar === "function") {
+                    hideDeleteToolbar();
+                }
+            });
+            */
+        }
     },
 
     addNodeToSticky(sticky, node) {
@@ -850,6 +1338,74 @@ window.StickyApp = {
     },
 
     onMouseMove(e) {
+
+        if (this.state.isSelecting && this.state.selectionBox) {
+
+            const startX = this.state.selectionStart.x;
+            const startY = this.state.selectionStart.y;
+
+            const currentX = e.clientX;
+            const currentY = e.clientY;
+
+            const x = Math.min(startX, currentX);
+            const y = Math.min(startY, currentY);
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+
+            const rect = this.canvas.getBoundingClientRect();
+
+            this.state.selectionBox.style.left = (x - rect.left) + "px";
+            this.state.selectionBox.style.top = (y - rect.top) + "px";
+            this.state.selectionBox.style.width = width + "px";
+            this.state.selectionBox.style.height = height + "px";
+
+            this.selectNodesInBox(
+                x - rect.left,
+                y - rect.top,
+                width,
+                height
+            );
+
+            return;
+        }
+
+        if (this.isMapEditor && this.state.isPanning) {
+
+            const dx = e.clientX - this.state.panStart.x;
+            const dy = e.clientY - this.state.panStart.y;
+
+            this.state.panStart = {
+                x: e.clientX,
+                y: e.clientY
+            };
+
+            // 🔥 Sposta tutti i nodi
+            const nodes = this.canvas.querySelectorAll(".map-node");
+
+            nodes.forEach(node => {
+                const left = parseFloat(node.style.left);
+                const top = parseFloat(node.style.top);
+
+                node.style.left = (left + dx) + "px";
+                node.style.top = (top + dy) + "px";
+            });
+
+            // 🔥 Sposta anche le sticky
+            const notes = this.canvas.querySelectorAll(".sticky-note");
+
+            notes.forEach(note => {
+                const left = parseFloat(note.style.left);
+                const top = parseFloat(note.style.top);
+
+                note.style.left = (left + dx) + "px";
+                note.style.top = (top + dy) + "px";
+            });
+
+            this.updateConnections();
+
+            return;
+        }
+
         if (this.state.isDraggingNote && this.state.draggedNote) {
 
             const worldMouse = this.screenToWorld(e.clientX, e.clientY);
@@ -892,6 +1448,23 @@ window.StickyApp = {
     },
 
     onMouseUp() {
+
+        if (this.state.isSelecting) {
+
+            this.state.isSelecting = false;
+
+            if (this.state.selectionBox) {
+                this.state.selectionBox.remove();
+                this.state.selectionBox = null;
+            }
+
+            return;
+        }
+
+        if (this.isMapEditor && this.state.isPanning) {
+            this.state.isPanning = false;
+            return;
+        }
         if (this.state.isDraggingNote && this.state.draggedNote) {
 
             const note = this.state.draggedNote;
@@ -952,12 +1525,33 @@ window.StickyApp = {
     },
 
     onMouseDown(e) {
-        if (e.target.closest(".sticky-app__toolbar") || this.state.isDraggingNote)
+
+        if (!this.isMapEditor) return;
+
+        // 🖱 DESTRO = PAN
+        if (e.button === 2) {
+
+            this.state.isPanning = true;
+            this.state.panStart = {
+                x: e.clientX,
+                y: e.clientY
+            };
+
             return;
+        }
 
-        this.state.isPanning = true;
+        // 🖱 SINISTRO = selezione multipla
+        if (e.button === 0) {
+
+            if (
+                e.target.closest(".map-node") ||
+                e.target.closest(".sticky-note") ||
+                e.target.closest(".sticky-app__toolbar")
+            ) return;
+
+            this.startSelectionBox(e);
+        }
     },
-
     onWheel(e) {
         if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
@@ -1039,12 +1633,21 @@ window.StickyApp = {
 
     selectNode(node) {
 
-        // 🔥 Se c'è già un nodo selezionato e non è lo stesso
+        const multi = this.getMultiSelectedNodes();
+
+        // 🔥 CASO 1: Sto cliccando un nodo già dentro la multi-selezione
+        if (multi.length > 1 && multi.includes(node)) {
+            return; // NON fare nulla → mantieni multi
+        }
+
+        // 🔥 CASO 2: Clicco nodo fuori dalla multi → pulisci multi
+        if (multi.length > 0 && !multi.includes(node)) {
+            this.clearNodeSelection();
+        }
+
+        // 🔵 comportamento normale
         if (this.selectedNode && this.selectedNode !== node) {
-
             this.selectedNode.classList.remove("selected");
-
-            // 🔥 Rimuovi il bottone +
             this.selectedNode
                 .querySelectorAll(".link-btn")
                 .forEach(btn => btn.remove());
@@ -1053,7 +1656,305 @@ window.StickyApp = {
         this.selectedNode = node;
         node.classList.add("selected");
 
+        const insertImageBtn = document.getElementById("insertImage");
+        const imageDivider = document.getElementById("imageDivider");
+
+        if (node.classList.contains("relation-node")) {
+            insertImageBtn?.classList.add("hidden-image-tool");
+            imageDivider?.classList.add("hidden-image-tool");
+        } else {
+            insertImageBtn?.classList.remove("hidden-image-tool");
+            imageDivider?.classList.remove("hidden-image-tool");
+        }
+
         this.addLinkButton(node);
+    },
+    applyTextStyle(command) {
+
+        const multi = this.getMultiSelectedNodes();
+
+        if (multi.length > 1) {
+
+            let tag;
+
+            switch (command) {
+                case "bold": tag = "strong"; break;
+                case "italic": tag = "em"; break;
+                case "underline": tag = "u"; break;
+                case "strikeThrough": tag = "s"; break;
+                default: return;
+            }
+
+            // 🔎 Controlla se TUTTI i nodi sono già completamente styled
+            const allStyled = multi.every(node => {
+                const content = node.querySelector(".map-node__content");
+                return this.isEntireNodeStyled(content, tag);
+            });
+
+            multi.forEach(node => {
+
+                const content = node.querySelector(".map-node__content");
+                if (!content) return;
+
+                if (allStyled) {
+                    // 🔥 RIMUOVI stile
+                    content.querySelectorAll(tag).forEach(el => this.unwrap(el));
+                } else {
+                    // 🔥 APPLICA stile
+                    const wrapper = document.createElement(tag);
+                    wrapper.innerHTML = content.innerHTML;
+                    content.innerHTML = "";
+                    content.appendChild(wrapper);
+                }
+            });
+
+            requestAnimationFrame(() => {
+                this.updateToolbarState();
+            });
+
+            this.saveProject();
+            return;
+        }
+
+        if (!this.selectedNode) return;
+
+        const content = this.selectedNode.querySelector(".map-node__content");
+        if (!content) return;
+
+        const selection = window.getSelection();
+        const hasSelection =
+            selection.rangeCount &&
+            content.contains(selection.getRangeAt(0).commonAncestorContainer) &&
+            !selection.isCollapsed;
+
+        let tag;
+
+        switch (command) {
+            case "bold": tag = "strong"; break;
+            case "italic": tag = "em"; break;
+            case "underline": tag = "u"; break;
+            case "strikeThrough": tag = "s"; break;
+            default: return;
+        }
+
+        // 🔵 CASO 1 — C'è selezione → toggle sulla selezione
+        if (hasSelection) {
+
+            const range = selection.getRangeAt(0);
+
+            const parentTag = this.getParentTag(range.startContainer, tag);
+
+            if (parentTag) {
+                // 🔥 Rimuovi stile
+                this.unwrap(parentTag);
+            } else {
+                // 🔥 Applica stile
+                const wrapper = document.createElement(tag);
+                wrapper.appendChild(range.extractContents());
+                range.insertNode(wrapper);
+            }
+
+            selection.removeAllRanges();
+        }
+
+        // 🟢 CASO 2 — Nessuna selezione → toggle su tutto il nodo
+        else {
+
+            const allStyled = this.isEntireNodeStyled(content, tag);
+
+            if (allStyled) {
+                content.querySelectorAll(tag).forEach(el => this.unwrap(el));
+            } else {
+                const wrapper = document.createElement(tag);
+                wrapper.innerHTML = content.innerHTML;
+                content.innerHTML = "";
+                content.appendChild(wrapper);
+            }
+        }
+
+        // Piccolo delay per far aggiornare il DOM
+        requestAnimationFrame(() => {
+            this.updateToolbarState();
+        });
+        this.saveProject();
+    },
+
+    updateToolbarState() {
+
+        const multi = this.getMultiSelectedNodes();
+        const insertImageBtn = document.getElementById("insertImage");
+        const imageDivider = document.getElementById("imageDivider");
+
+        const commands = [
+            { tag: "strong", id: "bold" },
+            { tag: "em", id: "italic" },
+            { tag: "u", id: "underline" },
+            { tag: "s", id: "stike" }
+        ];
+
+        /* =========================================================
+           🔵 MULTI-SELEZIONE
+        ========================================================= */
+
+        if (multi.length > 1) {
+
+            // 🔥 Nascondi immagine
+            insertImageBtn?.classList.add("hidden-image-tool");
+            imageDivider?.classList.add("hidden-image-tool");
+
+            commands.forEach(c => {
+
+                const btn = document.getElementById(c.id);
+                if (!btn) return;
+
+                // Attivo solo se TUTTI i nodi hanno quello stile
+                const allStyled = multi.every(node => {
+                    const content = node.querySelector(".map-node__content");
+                    return this.isEntireNodeStyled(content, c.tag);
+                });
+
+                btn.classList.toggle("active", allStyled);
+            });
+
+            return; // 🔥 IMPORTANTISSIMO → esce qui
+        }
+
+        /* =========================================================
+           🟢 SELEZIONE SINGOLA
+        ========================================================= */
+
+        /* =========================================================
+           🟢 SELEZIONE SINGOLA
+        ========================================================= */
+
+        if (!this.selectedNode) {
+            insertImageBtn?.classList.remove("hidden-image-tool");
+            imageDivider?.classList.remove("hidden-image-tool");
+
+            commands.forEach(c => {
+                const btn = document.getElementById(c.id);
+                if (btn) btn.classList.remove("active");
+            });
+            return;
+        }
+
+        // 🔥 Se è relation node → nascondi immagine
+        if (this.selectedNode.classList.contains("relation-node")) {
+            insertImageBtn?.classList.add("hidden-image-tool");
+            imageDivider?.classList.add("hidden-image-tool");
+        } else {
+            insertImageBtn?.classList.remove("hidden-image-tool");
+            imageDivider?.classList.remove("hidden-image-tool");
+        }
+
+        // Se non c'è nodo selezionato → spegni tutto
+        if (!this.selectedNode) {
+            commands.forEach(c => {
+                const btn = document.getElementById(c.id);
+                if (btn) btn.classList.remove("active");
+            });
+            return;
+        }
+
+        const content = this.selectedNode.querySelector(".map-node__content");
+        if (!content) return;
+
+        const selection = window.getSelection();
+
+        commands.forEach(c => {
+
+            const btn = document.getElementById(c.id);
+            if (!btn) return;
+
+            let active = false;
+
+            const hasSelection =
+                selection.rangeCount &&
+                !selection.isCollapsed &&
+                content.contains(selection.anchorNode);
+
+            // 🔵 Se c'è selezione testo
+            if (hasSelection) {
+
+                let node = selection.anchorNode;
+
+                while (node && node !== content) {
+                    if (node.nodeName && node.nodeName.toLowerCase() === c.tag) {
+                        active = true;
+                        break;
+                    }
+                    node = node.parentNode;
+                }
+            }
+            // 🟢 Nessuna selezione → controlla tutto il nodo
+            else {
+                active = this.isEntireNodeStyled(content, c.tag);
+            }
+
+            btn.classList.toggle("active", active);
+        });
+    },
+
+    getParentTag(node, tag) {
+        while (node && node !== this.selectedNode) {
+            if (node.nodeName && node.nodeName.toLowerCase() === tag) {
+                return node;
+            }
+            node = node.parentNode;
+        }
+        return null;
+    },
+
+    unwrap(element) {
+        const parent = element.parentNode;
+        while (element.firstChild) {
+            parent.insertBefore(element.firstChild, element);
+        }
+        parent.removeChild(element);
+    },
+
+    isEntireNodeStyled(content, tag) {
+
+        if (!content) return false;
+
+        const walker = document.createTreeWalker(
+            content,
+            NodeFilter.SHOW_TEXT,
+            null
+        );
+
+        let textNode;
+        let hasText = false;
+
+        while ((textNode = walker.nextNode())) {
+
+            const cleanText = textNode.nodeValue
+                .replace(/\u200B/g, "") // rimuove zero-width
+                .trim();
+
+            if (cleanText !== "") {
+
+                hasText = true;
+
+                let parent = textNode.parentNode;
+                let styled = false;
+
+                while (parent && parent !== content) {
+                    if (parent.nodeName.toLowerCase() === tag) {
+                        styled = true;
+                        break;
+                    }
+                    parent = parent.parentNode;
+                }
+
+                if (!styled) return false;
+            }
+        }
+
+        // 🔥 Se non c'è testo reale → NON è styled
+        if (!hasText) return false;
+
+        return true;
     },
 
     finalizeLink(targetNode) {
@@ -1065,7 +1966,15 @@ window.StickyApp = {
 
         // 🚫 Non permettere relazione → relazione
         if (startIsRelation && targetIsRelation) {
-            this.cancelLinking();
+
+            // Rimuovi linea temporanea
+            if (this.tempLine) {
+                this.tempLine.remove();
+                this.tempLine = null;
+            }
+
+            this.linking = false;
+            this.linkStartNode = null;
             return;
         }
 
@@ -1074,23 +1983,57 @@ window.StickyApp = {
             this.createConnection(this.linkStartNode, targetNode);
         }
         else {
-            // 🔹 Nodo normale → nodo normale
+            // 🔥 Calcolo reale dei bordi come in updateConnections
             const rect = this.canvas.getBoundingClientRect();
+
             const r1 = this.linkStartNode.getBoundingClientRect();
             const r2 = targetNode.getBoundingClientRect();
 
-            const midX = (
-                (r1.left + r1.width / 2 - rect.left) +
-                (r2.left + r2.width / 2 - rect.left)
-            ) / 2;
+            const c1x = r1.left + r1.width / 2 - rect.left;
+            const c1y = r1.top + r1.height / 2 - rect.top;
 
-            const midY = (
-                (r1.top + r1.height / 2 - rect.top) +
-                (r2.top + r2.height / 2 - rect.top)
-            ) / 2;
+            const c2x = r2.left + r2.width / 2 - rect.left;
+            const c2y = r2.top + r2.height / 2 - rect.top;
+
+            const dx = c2x - c1x;
+            const dy = c2y - c1y;
+
+            const length = Math.sqrt(dx * dx + dy * dy);
+            if (length === 0) return;
+
+            const ux = dx / length;
+            const uy = dy / length;
+
+            // Intersezione bordo nodo A
+            const t1 = Math.min(
+                Math.abs((r1.width / 2) / ux || Infinity),
+                Math.abs((r1.height / 2) / uy || Infinity)
+            );
+
+            const startX = c1x + ux * t1;
+            const startY = c1y + uy * t1;
+
+            // Intersezione bordo nodo B
+            const t2 = Math.min(
+                Math.abs((r2.width / 2) / ux || Infinity),
+                Math.abs((r2.height / 2) / uy || Infinity)
+            );
+
+            const endX = c2x - ux * t2;
+            const endY = c2y - uy * t2;
+
+            // 🔥 Punto medio REALE della linea
+            const midX = (startX + endX) / 2;
+            const midY = (startY + endY) / 2;
 
             const relationNode = this.createMapNode(midX, midY, "", false);
             relationNode.classList.add("relation-node");
+
+            // 🔥 Centro perfetto
+            relationNode.style.left =
+                (midX - relationNode.offsetWidth / 2) + "px";
+            relationNode.style.top =
+                (midY - relationNode.offsetHeight / 2) + "px";
 
             this.createConnection(this.linkStartNode, relationNode);
             this.createConnection(relationNode, targetNode);
@@ -1104,11 +2047,16 @@ window.StickyApp = {
         this.linking = false;
         this.linkStartNode = null;
     },
+
     createConnection(fromNode, toNode) {
 
         const svg = this.getOrCreateSVG();
 
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        const line = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line"
+        );
+
         line.setAttribute("stroke", "#4a90e2");
         line.setAttribute("stroke-width", "2");
         line.setAttribute("marker-end", "url(#arrow)");
@@ -1116,16 +2064,21 @@ window.StickyApp = {
         svg.appendChild(line);
 
         this.connections.push({
-            line,
-            fromNode,
-            toNode
+            line: line,
+            fromNode: fromNode,
+            toNode: toNode
         });
-
         this.updateConnections();
     },
 
     startLinking(node) {
         console.log("START LINKING");
+
+        // 🔥 Se esiste già una linea temporanea, rimuovila
+        if (this.tempLine) {
+            this.tempLine.remove();
+            this.tempLine = null;
+        }
 
         this.linking = true;
         this.linkStartNode = node;
@@ -1187,14 +2140,66 @@ window.StickyApp = {
 
     cancelLinking() {
 
+        if (!this.linking || !this.linkStartNode) return;
+
         if (this.tempLine) {
             this.tempLine.remove();
+            this.tempLine = null;
         }
 
-        this.tempLine = null;
+        const startNode = this.linkStartNode;
+
+        const world = this.screenToWorld(
+            this.lastMousePosition.x,
+            this.lastMousePosition.y
+        );
+
+        const endNode = this.createMapNode(
+            world.x,
+            world.y,
+            ""
+        );
+
+        const content = endNode.querySelector(".map-node__content");
+
+        if (content) {
+            content.setAttribute("contenteditable", "true");
+            content.focus();
+        }
+
+        const startIsRelation = startNode.classList.contains("relation-node");
+
+        // 🔥 SE parte da un relation node → crea solo una linea
+        if (startIsRelation) {
+
+            this.createConnection(startNode, endNode);
+
+        } else {
+
+            // 🔥 Nodo normale → crea relation node nel mezzo
+            const rect = this.canvas.getBoundingClientRect();
+            const r1 = startNode.getBoundingClientRect();
+            const r2 = endNode.getBoundingClientRect();
+
+            const midX = (
+                (r1.left + r1.width / 2 - rect.left) +
+                (r2.left + r2.width / 2 - rect.left)
+            ) / 2;
+
+            const midY = (
+                (r1.top + r1.height / 2 - rect.top) +
+                (r2.top + r2.height / 2 - rect.top)
+            ) / 2;
+
+            const relationNode = this.createMapNode(midX, midY, "", false);
+            relationNode.classList.add("relation-node");
+
+            this.createConnection(startNode, relationNode);
+            this.createConnection(relationNode, endNode);
+        }
+
         this.linking = false;
         this.linkStartNode = null;
-        this.linkStartSide = null;
     },
 
     updateConnections() {
@@ -1247,6 +2252,66 @@ window.StickyApp = {
         });
     },
 
+    removeConnectionsOfNode(node) {
+        const relationsToCheck = new Set();
+
+        this.connections = this.connections.filter(conn => {
+
+            if (conn.fromNode === node || conn.toNode === node) {
+
+                // Se coinvolge una relation-node, salvala per controllo
+                if (conn.fromNode.classList.contains("relation-node")) {
+                    relationsToCheck.add(conn.fromNode);
+                }
+
+                if (conn.toNode.classList.contains("relation-node")) {
+                    relationsToCheck.add(conn.toNode);
+                }
+
+                if (conn.line?.parentNode) {
+                    conn.line.remove();
+                }
+
+                return false;
+            }
+
+            return true;
+        });
+
+        relationsToCheck.forEach(relationNode => {
+
+            const incomingPrimary = this.connections.some(conn =>
+                conn.toNode === relationNode &&
+                !conn.fromNode.classList.contains("relation-node")
+            );
+
+            const outgoing = this.connections.some(conn =>
+                conn.fromNode === relationNode
+            );
+
+            if (!incomingPrimary || !outgoing) {
+                this.connections = this.connections.filter(conn => {
+
+                    if (
+                        conn.fromNode === relationNode ||
+                        conn.toNode === relationNode
+                    ) {
+
+                        if (conn.line?.parentNode) {
+                            conn.line.remove();
+                        }
+
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                relationNode.remove();
+            }
+        });
+    },
+
     addLinkButton(node) {
 
         node.querySelectorAll(".link-btn").forEach(b => b.remove());
@@ -1266,14 +2331,14 @@ window.StickyApp = {
 
     getNodePureText(node) {
 
-    const clone = node.cloneNode(true);
+        const clone = node.cloneNode(true);
 
-    // Rimuovi elementi UI
-    clone.querySelectorAll(".link-btn").forEach(el => el.remove());
-    clone.querySelectorAll(".resize-handle").forEach(el => el.remove());
+        // Rimuovi elementi UI
+        clone.querySelectorAll(".link-btn").forEach(el => el.remove());
+        clone.querySelectorAll(".resize-handle").forEach(el => el.remove());
 
-    return clone.textContent.trim();
-},
+        return clone.textContent.trim();
+    },
 
     projectKey: "cmapProject",
 
@@ -1282,9 +2347,9 @@ window.StickyApp = {
         const project = {
             textNotes: [],
             mapNodes: [],
+            connections: [],
             highlights: []
         };
-
         const notes = this.canvas.querySelectorAll(".sticky-note");
 
         notes.forEach(note => {
@@ -1307,27 +2372,45 @@ window.StickyApp = {
         });
 
         if (this.isMapEditor) {
+
             const nodes = this.canvas.querySelectorAll(".map-node");
 
             nodes.forEach(node => {
 
-                // 🔥 Cloniamo il nodo per rimuovere il bottone +
                 const clone = node.cloneNode(true);
                 clone.querySelectorAll(".link-btn").forEach(b => b.remove());
                 clone.querySelectorAll(".resize-handle").forEach(r => r.remove());
 
                 project.mapNodes.push({
-                    text: clone.textContent.trim(),
+                    id: node.dataset.id,
+                    text: node.querySelector(".map-node__content").innerHTML,
                     left: node.style.left,
-                    top: node.style.top
+                    top: node.style.top,
+                    width: node.style.width || "",
+                    height: node.style.height || "",
+                    isRelation: node.classList.contains("relation-node")
                 });
             });
 
         } else {
-            // Se NON sei in mapEditor, conserva i nodi vecchi
             const oldRaw = localStorage.getItem(this.projectKey);
             const oldProject = oldRaw ? JSON.parse(oldRaw) : null;
             project.mapNodes = oldProject?.mapNodes || [];
+        }
+
+        if (this.isMapEditor) {
+            this.connections.forEach(conn => {
+                project.connections.push({
+                    from: conn.fromNode.dataset.id,
+                    to: conn.toNode.dataset.id
+                });
+            });
+
+        } else {
+            // Se NON sono nel map editor, mantieni le vecchie connessioni
+            const oldRaw = localStorage.getItem(this.projectKey);
+            const oldProject = oldRaw ? JSON.parse(oldRaw) : null;
+            project.connections = oldProject?.connections || [];
         }
 
         const existingRaw = localStorage.getItem(this.projectKey);
@@ -1350,6 +2433,8 @@ window.StickyApp = {
 
     loadProject() {
         console.log("LOAD START");
+
+        this.connections = [];
 
         this.activeStickyNote = null;
 
@@ -1399,13 +2484,44 @@ window.StickyApp = {
         if (this.isMapEditor && Array.isArray(project.mapNodes)) {
 
             project.mapNodes.forEach(data => {
-                this.createMapNode(
+                const node = this.createMapNode(
                     parseFloat(data.left),
                     parseFloat(data.top),
-                    data.text,
+                    "",
                     true
                 );
+
+                node.dataset.id = data.id;
+
+                if (data.width) node.style.width = data.width;
+                if (data.height) node.style.height = data.height;
+
+                node.querySelector(".map-node__content").innerHTML = data.text;
+
+                if (data.isRelation) {
+                    node.classList.add("relation-node");
+                }
             });
+
+            if (Array.isArray(project.connections)) {
+
+                project.connections.forEach(connData => {
+
+                    const fromNode = this.canvas.querySelector(
+                        `[data-id="${connData.from}"]`
+                    );
+
+                    const toNode = this.canvas.querySelector(
+                        `[data-id="${connData.to}"]`
+                    );
+
+                    if (fromNode && toNode) {
+                        this.createConnection(fromNode, toNode);
+                    }
+                });
+
+                this.updateConnections();
+            }
         }
     },
 

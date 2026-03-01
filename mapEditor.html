@@ -1,4 +1,4 @@
-<html lang="en">
+<html lang="it">
 
 <head>
     <meta charset="UTF-8">
@@ -10,13 +10,15 @@
         rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="stylesheet" href="CSS/style.css">
     <title>Document</title>
 </head>
 
 <body>
     <main class="sticky-app">
-        <section class="sticky-app__canvas" id="canvas" role="region" aria-label="Infinite canvas"></section>
+        <section class="sticky-app__canvas" id="canvas" role="region" aria-label="Infinite canvas"><div id="world"></div></section>
         <div class="centerToolbar">
             <nav id="mediaToolbar" class="toolbar" role="toolbar">
                 <button class="mediaControl" id="settingsBtn"><img class="icon" id="settingsIcon"
@@ -30,6 +32,10 @@
                         src="img/mapEditor/underlineIcon.png"></button>
                 <button class="mediaControl" id="stike"><img class="icon" id="playPauseIcon"
                         src="img/mapEditor/StrikeIcon.png"></button>
+                
+                <span class="vBar" id="imageDivider"></span>
+                <button class="mediaControl" id="insertImage"><img class="icon" id="playPauseIcon"
+                        src="img/mapEditor/imageIcon.png"></button>
 
                 <div class="lastBtn">
                     <button class="sticky-btn sticky-btn--secondary" id="btnNode" aria-label="Add new sticky note">Add Node</button>
@@ -65,51 +71,27 @@
         </div>
     </main>
 
-    <!-- SETTINGS OVERLAY 
+    <!-- SETTINGS OVERLAY -->
     <div id="settingsOverlay" class="settings-overlay hidden">
-        <div class="settings-panel">
+        <div id="panel" class="settings-panel">
             <div class="settings-header">
                 <h3>Settings</h3>
                 <button id="closeSettings" class="settings-close">✕</button>
             </div>
 
             <ul class="settings-list">
-                <li class="has-submenu" id="fontMenu">
-                    Change font
-                    <div class="side-dropdown">
-                        <ul>
-                            <li data-font="Inter">Default</li>
-                            <li data-font="Atkinson">Atkinson Hyperlegible</li>
-                            <li data-font="Lexend">Lexend</li>
-                            <li data-font="IbmMono">IBM Plex Mono</li>
-                            <li data-font="Roboto">Roboto</li>
-                        </ul>
-                    </div>
+                <li id="save" class="settingsItem">
+                    <span>Save</span>
                 </li>
-                <li id="fontSizeControl" class="font-size-item">
-                    <span>Change font size</span>
-
-                    <div class="font-controls">
-                        <button id="decreaseFont">−</button>
-                        <span id="fontSizeValue" contenteditable="true">16px</span>
-                        <button id="increaseFont">+</button>
-                    </div>
-
-                <li class="has-submenu" id="languageMenu">
-                    Language
-                    <div class="side-dropdown">
-                        <ul>
-                            <li data-lang="it-IT">Italiano</li>
-                            <li data-lang="en-US">English</li>
-                            <li data-lang="fr-FR">Français</li>
-                            <li data-lang="es-ES">Español</li>
-                        </ul>
-                    </div>
+                <li id="import" class="settingsItem">
+                    <span>Import</span>
+                </li>
+                <li id="export" class="settingsItem">
+                    <span>Export</span>
                 </li>
             </ul>
-
         </div>
-    </div>-->
+    </div>
     <script src="JS/StickyEngine.js" defer></script>
     <script src="JS/Map.js" defer></script>
 </body>

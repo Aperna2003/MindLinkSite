@@ -666,10 +666,15 @@ body {
 
 
 
-.font-size-item {
+.font-size-item, .settingsItem {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.settings-list .settingsItem:hover {
+    background: #f8f8f8;
+    border-radius: 10px;
 }
 
 .font-controls {
@@ -710,7 +715,7 @@ body {
     display: inline-block;
 
     width: fit-content;      /* 🔥 chiave */
-    min-width: 80px;
+    min-width: 50px;
     max-width: 600px;
 
     padding: 8px 16px;
@@ -843,9 +848,35 @@ body {
     box-shadow: none !important;
     min-width: 40px;
     padding: 4px 8px;
-    font-style: italic;
 }
 
 .relation-node:focus {
     box-shadow: none;
+}
+
+.mediaControl.active {
+    background-color: #4a90e2;
+    filter: brightness(1.2);
+}
+
+.map-node,
+.map-node * {
+    -webkit-user-drag: none;
+}
+
+.map-node img {
+    pointer-events: none;
+}
+
+.hidden-image-tool {
+    display: none !important;
+}
+
+.multi-selected {
+    outline: 2px solid #4a90e2;
+    box-shadow: 0 0 0 4px rgba(74,144,226,0.2);
+}
+
+#panel {
+    width: 302px;
 }
