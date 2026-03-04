@@ -87,6 +87,7 @@ function pickVoiceForLang(lang) {
   v = voices.find(x => (x.lang || "").toLowerCase().startsWith(prefix));
   return v || null;
 }
+/*
 
 function setSpeechLanguage(lang) {
   currentLang = lang;
@@ -95,7 +96,7 @@ function setSpeechLanguage(lang) {
     const idx = (tts.progressIndex ?? readerState.index ?? 0);
     startReadingFromIndex(idx);
   }
-}
+}*/
 
 
 
@@ -504,15 +505,15 @@ async function handleFile(file) {
 */
 
 async function handleFile(file) {
+
   if (!file || file.type !== "application/pdf") {
     alert("Carica un PDF valido");
     return;
   }
 
-  const MAX_SIZE = 3 * 1024 * 1024; // 3MB
+  const MAX_SIZE = 3 * 1024 * 1024;
   const arrayBuffer = await file.arrayBuffer();
 
-  // 🔥 Salva solo se sotto 3MB
   if (file.size <= MAX_SIZE) {
 
     const base64 = btoa(
@@ -526,10 +527,15 @@ async function handleFile(file) {
     alert("PDF troppo grande per il salvataggio automatico (max 3MB).");
   }
 
-  // 🔥 Carica PDF
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-  renderPDF(pdf);
+  await renderPDF(pdf);
+
+  // 🔥 FIX CRITICO
+  if (window.StickyApp && !StickyApp._initializedAfterUpload) {
+    StickyApp._initializedAfterUpload = true;
+    StickyApp.loadProject();
+  }
 
   uploadToolbar.classList.add("hidden");
   mediaToolbar.classList.remove("hidden");
@@ -584,6 +590,24 @@ window.renderPDF = async function (pdf) {
 
         span.className = `pdf-word ${sizeClass}`;
         span.textContent = word + " ";
+
+        span.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const idx = readerState.words.indexOf(span);
+          if (idx < 0) return;
+
+          synth.cancel();
+
+          audioState.playing = true;
+
+          readerState.index = idx;
+
+          playPauseIcon.src = "img/pauseIcon.png";
+
+          startReadingFromIndex(idx);
+        });
 
         // 🔥 QUI applico highlight correttamente
         if (highlightSet.has(pid)) {
@@ -964,12 +988,15 @@ function enqueueSentence() {
 
 
   u.onend = () => {
-    // chunk finito -> avanza sicuro
+
+    if (!tts.playing) return;
+
     tts.progressIndex = nextIndex;
     tts.lastWordIndex = nextIndex;
     readerState.index = nextIndex;
 
     tts.queued = Math.max(0, tts.queued - 1);
+
     fillQueue();
   };
 
@@ -1060,66 +1087,56 @@ function startReadingFromIndex(idx) {
 
 playPauseBtn.addEventListener("click", () => {
 
-  // ▶️ PLAY / RESUME
-  if (!audioState.playing) {
+  // ▶️ PLAY
+  if (!tts.playing) {
+
+    tts.playing = true;
     audioState.playing = true;
+
     playPauseIcon.src = "img/pauseIcon.png";
 
-    // riparte ESATTAMENTE dall’ultima parola letta
-    restartFromLastWord();
+    const idx = tts.progressIndex ?? readerState.index ?? 0;
+
+    startReadingFromIndex(idx);
     return;
   }
 
-  // ⏸ PAUSA SECCA
+  // ⏸ PAUSE
+  tts.playing = false;
   audioState.playing = false;
+
   playPauseIcon.src = "img/playIcon.png";
 
-  // taglia immediatamente la frase
   synth.cancel();
-  readerState.speaking = false;
-
-  readerState.index =
-    readerState.sentenceStart + readerState.sentenceIndex;
-
 });
 
 stopBtn.addEventListener("click", () => {
-  // ferma audio subito
+
   synth.cancel();
 
-  // reset stato audio
   audioState.playing = false;
+  tts.playing = false;
+  tts.paused = false;
+
   playPauseIcon.src = "img/playIcon.png";
 
-  // reset stato lettura
+  // reset reader
   readerState.index = 0;
   readerState.sentenceStart = 0;
   readerState.sentenceIndex = 0;
   readerState.speaking = false;
+
+  // 🔥 reset motore TTS
+  tts.nextIndex = 0;
+  tts.progressIndex = 0;
+  tts.lastWordIndex = 0;
+  tts.currentStart = 0;
+  tts.queued = 0;
+
+  clearReadingHighlight();
 });
 
 
-
-
-
-
-
-function startReadingFromIndex(idx) {
-  synth.cancel();
-
-  tts.playing = true;
-  tts.paused = false;
-  tts.queued = 0;
-
-  tts.nextIndex = idx;
-
-  // NON resettare lastWordIndex a 0 se idx è > 0
-  tts.currentStart = idx;
-  tts.progressIndex = idx;
-  tts.lastWordIndex = idx;
-
-  fillQueue();
-}
 
 /*
 volumeSlider.addEventListener("input", () => {
@@ -1135,17 +1152,54 @@ speedSlider.addEventListener("input", () => {
 
 */
 
+let volumeTimer = null;
+
 volumeSlider.addEventListener("input", () => {
+
   audioState.volume = parseInt(volumeSlider.value, 10);
   updateVolumeIcon(audioState.volume);
-  if (tts.playing || tts.paused) startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
+
+  if (!tts.playing) return;
+
+  clearTimeout(volumeTimer);
+
+  volumeTimer = setTimeout(() => {
+
+    const idx = tts.progressIndex ?? readerState.index ?? 0;
+
+    synth.cancel();
+
+    requestAnimationFrame(() => {
+      startReadingFromIndex(idx);
+    });
+
+  }, 150);
+
 });
+
+let speedTimer = null;
 
 speedSlider.addEventListener("input", () => {
-  audioState.rate = parseFloat(speedSlider.value);
-  if (tts.playing || tts.paused) startReadingFromIndex(tts.lastSafeIndex || readerState.index || 0);
-});
 
+  audioState.rate = parseFloat(speedSlider.value);
+
+  if (!tts.playing) return;
+
+  clearTimeout(speedTimer);
+
+  speedTimer = setTimeout(() => {
+
+    const idx = tts.progressIndex ?? readerState.index ?? 0;
+
+    synth.cancel();
+
+    requestAnimationFrame(() => {
+      startReadingFromIndex(idx);
+    });
+
+  }, 150);
+
+});
 
 
 function jumpToWord(span) {
@@ -2180,18 +2234,21 @@ if (changePDFBtn) {
 
   changePDFBtn.addEventListener("click", () => {
 
+    synth.cancel();
+
     localStorage.removeItem("cmapProject");
     localStorage.removeItem("cmapPDF");
+
+    // 🔥 reset render PDF
+    pdfAlreadyRendered = false;
 
     if (window.StickyApp) {
       StickyApp.activeStickyNote = null;
     }
 
-    // 🔥 reset PDF DOM
     const pdfSheet = document.getElementById("pdfSheet");
     if (pdfSheet) pdfSheet.innerHTML = "";
 
-    // 🔥 reset stato reader
     if (window.readerState) {
       readerState.words = [];
       readerState.index = 0;
@@ -2201,7 +2258,6 @@ if (changePDFBtn) {
 
     console.log("Cache progetto eliminata");
 
-    // 🔥 torna alla schermata upload senza reload
     uploadToolbar?.classList.remove("hidden");
     mediaToolbar?.classList.add("hidden");
     helpToolbar?.classList.add("hidden");
