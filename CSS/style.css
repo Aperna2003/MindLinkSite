@@ -709,6 +709,10 @@ body {
   background: #f2f2f2;
 }
 
+.active-font {
+  font-weight: 600;
+  background: #f2f2f2;
+}
 
 .map-node {
     position: absolute;

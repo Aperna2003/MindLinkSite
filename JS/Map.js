@@ -7,6 +7,65 @@ if (txtBtn) {
   });
 }
 
+const fontMenu = document.getElementById("fontMenu");
+const fontOptions = fontMenu.querySelectorAll("[data-font]");
+
+// 🔥 SET ATTIVO ALL'AVVIO
+const savedFont = localStorage.getItem("appFont");
+
+if (savedFont) {
+  fontOptions.forEach(opt => {
+    const font = opt.dataset.font;
+
+    if (
+      (font === "Lexend" && savedFont.includes("Lexend")) ||
+      (font === "Atkinson" && savedFont.includes("Atkinson")) ||
+      (font === "IbmMono" && savedFont.includes("IBM Plex Mono")) ||
+      (font === "Roboto" && savedFont.includes("Roboto")) ||
+      (font === "Inter" && savedFont.includes("Inter"))
+    ) {
+      opt.classList.add("active-font");
+    } else {
+      opt.classList.remove("active-font");
+    }
+  });
+}
+
+fontOptions.forEach(option => {
+  option.addEventListener("click", function (e) {
+    e.stopPropagation();
+
+    const selectedFont = this.dataset.font;
+    let fontFamily;
+
+    switch (selectedFont) {
+      case "Lexend":
+        fontFamily = '"Lexend", sans-serif';
+        break;
+      case "Atkinson":
+        fontFamily = '"Atkinson Hyperlegible", sans-serif';
+        break;
+      case "IbmMono":
+        fontFamily = '"IBM Plex Mono", monospace';
+        break;
+      case "Roboto":
+        fontFamily = '"Roboto", sans-serif';
+        break;
+      default:
+        fontFamily = 'Inter, sans-serif';
+    }
+
+    document.documentElement.style.setProperty("--app-font-ui", fontFamily);
+
+    localStorage.setItem("appFont", fontFamily);
+
+    fontOptions.forEach(opt => opt.classList.remove("active-font"));
+    this.classList.add("active-font");
+
+    fontMenu.classList.remove("active");
+  });
+});
+
 function showDeleteToolbar(showNote = false) {
 
   const mediaToolbar = document.getElementById("mediaToolbar");
@@ -26,6 +85,7 @@ function showDeleteToolbar(showNote = false) {
     actionToolbars?.classList.remove("hidden");
   }
 }
+
 function hideDeleteToolbar() {
 
   const mediaToolbar = document.getElementById("mediaToolbar");
@@ -44,6 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const noteTb = document.getElementById("NoteToolbar");
 
   if (!window.StickyApp) return;
+  
 
   // 🔹 Quando trascini un nodo → mostra entrambe
   document.addEventListener("dragstart", (e) => {
@@ -258,4 +319,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const submenus = document.querySelectorAll(".has-submenu");
+
+  submenus.forEach(menu => {
+    menu.addEventListener("click", function (e) {
+      e.stopPropagation();
+
+      submenus.forEach(m => {
+        if (m !== this) m.classList.remove("active");
+      });
+
+      this.classList.toggle("active");
+    });
+  });
+
+  // chiude cliccando fuori
+  document.addEventListener("click", function () {
+    submenus.forEach(menu => menu.classList.remove("active"));
+  });
 });

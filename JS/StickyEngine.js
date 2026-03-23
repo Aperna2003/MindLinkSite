@@ -2545,4 +2545,13 @@ window.StickyApp = {
 
 document.addEventListener("DOMContentLoaded", () => {
     StickyApp.init();
+
+    const savedFont = localStorage.getItem("appFont");
+
+    if (savedFont) {
+        document.documentElement.style.setProperty(
+            "--app-font-ui",
+            savedFont
+        );
+    }
 });

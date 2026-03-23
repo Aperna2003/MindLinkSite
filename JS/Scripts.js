@@ -2153,10 +2153,35 @@ fontSizeSpan.addEventListener("keydown", function (e) {
 /* inizializza */
 applyFontSize(currentSize);
 
+const savedFont = localStorage.getItem("appFont");
 
+if (savedFont) {
+  document.documentElement.style.setProperty(
+    "--app-font-ui",
+    savedFont
+  );
+}
 
 const fontMenu = document.getElementById("fontMenu");
 const fontOptions = fontMenu.querySelectorAll("[data-font]");
+
+if (savedFont) {
+  fontOptions.forEach(opt => {
+    const font = opt.dataset.font;
+
+    if (
+      (font === "Lexend" && savedFont.includes("Lexend")) ||
+      (font === "Atkinson" && savedFont.includes("Atkinson")) ||
+      (font === "IbmMono" && savedFont.includes("IBM Plex Mono")) ||
+      (font === "Roboto" && savedFont.includes("Roboto")) ||
+      (font === "Inter" && savedFont.includes("Inter"))
+    ) {
+      opt.classList.add("active-font");
+    } else {
+      opt.classList.remove("active-font");
+    }
+  });
+}
 
 fontOptions.forEach(option => {
   option.addEventListener("click", function (e) {
@@ -2182,15 +2207,16 @@ fontOptions.forEach(option => {
         fontFamily = 'Inter, sans-serif';
     }
 
-    document.documentElement.style.setProperty(
-      "--app-font-ui",
-      fontFamily
-    );
+    document.documentElement.style.setProperty("--app-font-ui", fontFamily);
+
+    localStorage.setItem("appFont", fontFamily);
+
+    fontOptions.forEach(opt => opt.classList.remove("active-font"));
+    this.classList.add("active-font");
 
     fontMenu.classList.remove("active");
   });
 });
-
 
 
 const cmapBtn = document.getElementById("cmapBtn");
